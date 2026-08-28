@@ -5,6 +5,7 @@ import logging
 import asyncio
 import shutil
 import tempfile
+import http.cookiejar
 import urllib3
 from typing import List, Dict, Optional, Any
 # pyrefly: ignore [missing-import]
@@ -51,29 +52,9 @@ DEFAULT_PIPED_INSTANCES: List[str] = [
     "https://pipedapi.tokhmi.xyz"
 ]
 
-# Initialize YTMusic client (unauthenticated public mode)
-try:
-    yt = YTMusic()
-except Exception as e:
-    logger.warning(f"Error initializing YTMusic: {e}")
-    yt = None
-
-# In-memory stream URL cache: video_id -> {url, headers, expires_at, info}
-stream_cache: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL = 3600 * 4  # 4 hours TTL cache
-
-def _evict_expired_cache() -> None:
-    """Evicts expired stream items from memory to prevent unbound growth."""
-    now = time.time()
-    expired = [k for k, v in stream_cache.items() if v.get("expires_at", 0) <= now]
-    for k in expired:
-        stream_cache.pop(k, None)
-    # If still large, remove oldest 20%
-    if len(stream_cache) > 400:
-        sorted_keys = sorted(stream_cache.keys(), key=lambda k: stream_cache[k].get("expires_at", 0))
-        for k in sorted_keys[:80]:
-            stream_cache.pop(k, None)
-
+# -------------------------------------------------------------
+# COOKIES & CLIENT AUTH MANAGEMENT (RENDER READ-ONLY BYPASS)
+# -------------------------------------------------------------
 def get_writable_cookie_path() -> Optional[str]:
     """
     Locates YouTube cookies and ensures they are located in a writable path (e.g., /tmp/cookies.txt)
@@ -81,7 +62,7 @@ def get_writable_cookie_path() -> Optional[str]:
     
     Render mounts secret files at /etc/secrets/cookies.txt as a read-only filesystem.
     When yt-dlp runs, it tries to write session state back to the cookie file.
-    Copying the file to /tmp/cookies.txt gives yt-dlp full write access.
+    Copying the file to /tmp/cookies.txt gives yt-dlp and ytmusicapi full write access.
     """
     target_temp = "/tmp/cookies.txt" if os.name != "nt" else os.path.join(tempfile.gettempdir(), "cookies.txt")
 
@@ -150,6 +131,53 @@ def get_writable_cookie_path() -> Optional[str]:
 
 # Alias for backward compatibility
 get_cookie_file_path = get_writable_cookie_path
+
+ACTIVE_COOKIE_PATH = get_writable_cookie_path()
+
+def get_ytmusic_client() -> Optional[YTMusic]:
+    """
+    Initializes and returns a YTMusic client passing the writable cookie file if available,
+    with unauthenticated fallback.
+    """
+    cookie_path = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
+    if cookie_path and os.path.exists(cookie_path):
+        try:
+            # 1. Attempt loading via requests Session with MozillaCookieJar for Netscape cookies.txt
+            session = requests.Session()
+            cj = http.cookiejar.MozillaCookieJar(cookie_path)
+            cj.load(ignore_discard=True, ignore_expires=True)
+            session.cookies = cj
+            return YTMusic(requests_session=session)
+        except Exception:
+            # 2. Attempt direct path in case of json credentials
+            try:
+                return YTMusic(cookie_path)
+            except Exception as e:
+                logger.warning(f"Could not initialize YTMusic with cookies ({cookie_path}): {e}")
+    try:
+        return YTMusic()
+    except Exception as e:
+        logger.warning(f"Error initializing unauthenticated YTMusic: {e}")
+        return None
+
+# Initialize global YTMusic client with active cookie path
+yt = get_ytmusic_client()
+
+# In-memory stream URL cache: video_id -> {url, headers, expires_at, info}
+stream_cache: Dict[str, Dict[str, Any]] = {}
+CACHE_TTL = 3600 * 4  # 4 hours TTL cache
+
+def _evict_expired_cache() -> None:
+    """Evicts expired stream items from memory to prevent unbound growth."""
+    now = time.time()
+    expired = [k for k, v in stream_cache.items() if v.get("expires_at", 0) <= now]
+    for k in expired:
+        stream_cache.pop(k, None)
+    # If still large, remove oldest 20%
+    if len(stream_cache) > 400:
+        sorted_keys = sorted(stream_cache.keys(), key=lambda k: stream_cache[k].get("expires_at", 0))
+        for k in sorted_keys[:80]:
+            stream_cache.pop(k, None)
 
 def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
     """
@@ -279,11 +307,12 @@ def clean_track_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def get_search_suggestions(query: str) -> List[str]:
     if not query or not query.strip():
         return []
-    try:
-        if yt:
-            return yt.get_search_suggestions(query.strip())
-    except Exception as e:
-        logger.warning(f"Error fetching suggestions: {e}")
+    client = yt or get_ytmusic_client()
+    if client:
+        try:
+            return client.get_search_suggestions(query.strip())
+        except Exception as e:
+            logger.warning(f"Error fetching suggestions via ytmusic: {e}")
         
     # Fallback to public google autocomplete
     try:
@@ -299,6 +328,55 @@ def get_search_suggestions(query: str) -> List[str]:
         pass
     return []
 
+def search_via_ytdl(query: str, limit: int = 30) -> List[Dict[str, Any]]:
+    """
+    Fallback search using yt-dlp's ytsearch extractor when ytmusicapi encounters
+    cloud/datacenter JSONDecodeError or blocking.
+    """
+    if not query or not query.strip():
+        return []
+    
+    tracks: List[Dict[str, Any]] = []
+    seen_ids = set()
+    search_opts = {
+        **YTDL_OPTS,
+        'extract_flat': True,
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(search_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch{max(limit, 25)}:{query.strip()}", download=False)
+            entries = (info and info.get("entries")) or []
+            for entry in entries:
+                if not entry or not entry.get("id"):
+                    continue
+                v_id = entry["id"]
+                if v_id in seen_ids:
+                    continue
+                seen_ids.add(v_id)
+                dur = int(entry.get("duration") or 0)
+                uploader = entry.get("uploader") or entry.get("channel") or entry.get("creator") or "Unknown Artist"
+                thumb = entry.get("thumbnail") or f"https://i.ytimg.com/vi/{v_id}/hqdefault.jpg"
+                tracks.append({
+                    "id": v_id,
+                    "videoId": v_id,
+                    "title": entry.get("title") or "Unknown Title",
+                    "artist": uploader,
+                    "album": "Oxyzen Audio",
+                    "duration": format_duration(dur),
+                    "duration_sec": dur,
+                    "thumbnail": thumb,
+                    "year": ""
+                })
+                if len(tracks) >= limit:
+                    break
+    except Exception as e:
+        logger.error(f"Fallback yt-dlp search error for '{query}': {e}")
+    return tracks
+
 def search_music(query: str, filter_type: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
     if not query or not query.strip():
         return {"tracks": [], "artists": [], "albums": [], "playlists": []}
@@ -310,8 +388,9 @@ def search_music(query: str, filter_type: Optional[str] = None, limit: int = 50)
     playlists: List[Dict[str, Any]] = []
     seen_track_ids = set()
 
-    try:
-        if yt:
+    client = yt or get_ytmusic_client()
+    if client:
+        try:
             # Map frontend filter type to ytmusicapi filter
             yt_filter = None
             if filter_type == "songs":
@@ -325,7 +404,7 @@ def search_music(query: str, filter_type: Optional[str] = None, limit: int = 50)
             elif filter_type == "playlists":
                 yt_filter = "playlists"
                 
-            results = yt.search(q, filter=yt_filter, limit=max(limit, 35))
+            results = client.search(q, filter=yt_filter, limit=max(limit, 35))
             
             for item in results:
                 r_type = item.get("resultType")
@@ -364,7 +443,7 @@ def search_music(query: str, filter_type: Optional[str] = None, limit: int = 50)
             if (filter_type in (None, "songs")) and len(tracks) < limit:
                 extra_filter = "videos" if yt_filter == "songs" else "songs"
                 try:
-                    extra_results = yt.search(q, filter=extra_filter, limit=limit - len(tracks) + 10)
+                    extra_results = client.search(q, filter=extra_filter, limit=limit - len(tracks) + 10)
                     for item in extra_results:
                         cleaned = clean_track_item(item)
                         if cleaned and cleaned["id"] not in seen_track_ids:
@@ -375,31 +454,17 @@ def search_music(query: str, filter_type: Optional[str] = None, limit: int = 50)
                 except Exception:
                     pass
 
-    except Exception as e:
-        logger.error(f"Search error in ytmusic: {e}")
-
-    # Fallback to yt-dlp search if tracks are empty
-    if not tracks and filter_type in (None, "songs", "videos"):
-        try:
-            with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True, 'noplaylist': True}) as ydl:
-                info = ydl.extract_info(f"ytsearch{max(limit, 30)}:{q}", download=False)
-                if info and 'entries' in info:
-                    for entry in info['entries']:
-                        if entry and entry.get('id') and entry['id'] not in seen_track_ids:
-                            seen_track_ids.add(entry['id'])
-                            dur = entry.get('duration') or 0
-                            tracks.append({
-                                "id": entry['id'],
-                                "videoId": entry['id'],
-                                "title": entry.get('title', 'Unknown Title'),
-                                "artist": entry.get('uploader', entry.get('channel', 'Unknown Artist')),
-                                "album": "Oxyzen Audio",
-                                "duration": format_duration(dur),
-                                "duration_sec": dur,
-                                "thumbnail": entry.get('thumbnail') or f"https://i.ytimg.com/vi/{entry['id']}/hqdefault.jpg"
-                            })
         except Exception as e:
-            logger.error(f"Fallback yt-dlp search error: {e}")
+            logger.warning(f"Search error in ytmusic (will fall back to yt-dlp): {e}")
+
+    # Fallback to yt-dlp search if tracks are empty or if client failed
+    if not tracks and filter_type in (None, "songs", "videos"):
+        logger.info(f"Querying yt-dlp fallback search for: '{q}'")
+        ytdl_tracks = search_via_ytdl(q, limit=limit)
+        for t in ytdl_tracks:
+            if t["id"] not in seen_track_ids:
+                seen_track_ids.add(t["id"])
+                tracks.append(t)
 
     return {
         "tracks": tracks[:limit],
@@ -606,9 +671,10 @@ def get_vibe_recommendations(video_id: Optional[str] = None, artist: Optional[st
     if video_id:
         seen_ids.add(video_id)
     
-    if video_id and yt:
+    client = yt or get_ytmusic_client()
+    if video_id and client:
         try:
-            watch_pl = yt.get_watch_playlist(videoId=video_id, limit=30)
+            watch_pl = client.get_watch_playlist(videoId=video_id, limit=30)
             if watch_pl and "tracks" in watch_pl:
                 for item in watch_pl["tracks"]:
                     v_id = item.get("videoId")
@@ -620,11 +686,20 @@ def get_vibe_recommendations(video_id: Optional[str] = None, artist: Optional[st
         except Exception as e:
             logger.warning(f"Error getting watch playlist recommendations: {e}")
 
-    # If empty or fallback
-    if len(recommendations) < 15 and (artist or title):
+    # If empty or fewer than 10, search related hits
+    if len(recommendations) < 10 and (artist or title):
         query = f"{artist or ''} {title or ''} hits music".strip()
         search_res = search_music(query, filter_type="songs", limit=20)
         for t in search_res.get("tracks", []):
+            if t["id"] not in seen_ids:
+                seen_ids.add(t["id"])
+                recommendations.append(t)
+
+    # Secondary fallback to yt-dlp search if still empty
+    if len(recommendations) < 5 and (artist or title):
+        query = f"{artist or ''} {title or ''} official audio".strip()
+        ytdl_tracks = search_via_ytdl(query, limit=15)
+        for t in ytdl_tracks:
             if t["id"] not in seen_ids:
                 seen_ids.add(t["id"])
                 recommendations.append(t)
@@ -763,6 +838,8 @@ def get_explore_feed(profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
         try:
             res = search_music(cat["query"], filter_type="songs", limit=12)
             tracks = res.get("tracks", [])
+            if not tracks:
+                tracks = search_via_ytdl(cat["query"], limit=12)
             if tracks:
                 feed_sections.append({
                     "id": cat["id"],
@@ -774,6 +851,26 @@ def get_explore_feed(profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
                 })
         except Exception as e:
             logger.error(f"Error fetching explore section {cat['id']}: {e}")
+
+    # 3. If all sections failed or empty, provide guaranteed curated fallback sections
+    if not feed_sections:
+        logger.info("Explore sections empty, populating curated yt-dlp fallback feed...")
+        fallback_queries = [
+            ("trending_global", "Global Heatwave", "The hottest tracks dominating the planet right now", "Top Charts", "#F5C542", "Global Top 50 hits 2026"),
+            ("desi_bangers", "Desi & Bollywood Bangers", "Chart-topping desi rhythms and soulful melodies", "Trending India", "#A855F7", "Trending Bollywood Hindi songs 2026"),
+            ("lofi_zen", "Lo-Fi Zen Oasis", "Pure calm, study beats, and organic breathing room", "Deep Focus", "#22D3EE", "Lofi hip hop chill beats relax"),
+        ]
+        for fid, ftitle, ftagline, fbadge, fcolor, fquery in fallback_queries:
+            fb_tracks = search_via_ytdl(fquery, limit=10)
+            if fb_tracks:
+                feed_sections.append({
+                    "id": fid,
+                    "title": ftitle,
+                    "tagline": ftagline,
+                    "badge": fbadge,
+                    "color": fcolor,
+                    "tracks": fb_tracks
+                })
 
     return {
         "hero": {
@@ -986,23 +1083,26 @@ def get_mood_feed(mood_key: str, languages: Optional[List[str]] = None) -> Dict[
     for q in selected_queries[:4]:
         try:
             res = search_music(q, filter_type="songs", limit=16)
-            for t in res.get("tracks", []):
+            tracks = res.get("tracks", [])
+            if not tracks:
+                tracks = search_via_ytdl(q, limit=12)
+            for t in tracks:
                 if t["id"] not in seen_ids:
                     seen_ids.add(t["id"])
                     all_tracks.append(t)
         except Exception as e:
             logger.warning(f"Error fetching mood query '{q}': {e}")
 
-    # If still fewer than 5 tracks, run general fallback
+    # If still fewer than 5 tracks, run guaranteed yt-dlp fallback
     if len(all_tracks) < 5:
         try:
-            fallback_res = search_music(f"{mood['name']} popular songs", filter_type="songs", limit=20)
-            for t in fallback_res.get("tracks", []):
+            fallback_tracks = search_via_ytdl(f"{mood['name']} popular songs hits", limit=16)
+            for t in fallback_tracks:
                 if t["id"] not in seen_ids:
                     seen_ids.add(t["id"])
                     all_tracks.append(t)
         except Exception as e:
-            logger.warning(f"Fallback search error: {e}")
+            logger.warning(f"Fallback yt-dlp mood search error: {e}")
 
     result = {
         "mood": {

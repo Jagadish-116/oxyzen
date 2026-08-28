@@ -135,6 +135,7 @@ class OxyzenApp {
     this.searchFilterChips = document.querySelectorAll(".search-filter-chip");
 
     // Player Dock
+    this.playerDock = document.getElementById("player-dock");
     this.playPauseBtn = document.getElementById("play-pause-btn");
     this.prevBtn = document.getElementById("prev-btn");
     this.nextBtn = document.getElementById("next-btn");
@@ -160,7 +161,7 @@ class OxyzenApp {
       this.audio.setVisualizerCanvases(this.dockCanvas, this.cinemaCanvas);
     }
 
-    // Cinema Overlay Elements
+    // Cinema Overlay Elements & Mobile Drawer
     this.cinemaOverlay = document.getElementById("cinema-mode-overlay");
     this.cinemaBackdrop = document.getElementById("cinema-backdrop");
     this.cinemaArt = document.getElementById("cinema-art");
@@ -176,6 +177,13 @@ class OxyzenApp {
     this.cinemaVolumeSlider = document.getElementById("cinema-volume-slider");
     this.cinemaLikeBtn = document.getElementById("cinema-like-btn");
     this.cinemaSpatialBtn = document.getElementById("cinema-spatial-btn");
+    this.cinemaShuffleBtn = document.getElementById("cinema-shuffle-btn");
+    this.cinemaRepeatBtn = document.getElementById("cinema-repeat-btn");
+    this.cinemaPrevBtn = document.getElementById("cinema-prev-btn");
+    this.cinemaNextBtn = document.getElementById("cinema-next-btn");
+    this.cinemaPlayPauseBtn = document.getElementById("cinema-play-pause-btn");
+    this.cinemaLyricsToggleBtn = document.getElementById("cinema-lyrics-toggle-btn");
+    this.mobileDrawerHandle = document.getElementById("mobile-drawer-handle-bar");
 
     // Slide Panels & Modals
     this.lyricsPanel = document.getElementById("lyrics-slide-panel");
@@ -205,13 +213,24 @@ class OxyzenApp {
   // EVENT LISTENERS INITIALIZATION
   // -------------------------------------------------------------
   initEventListeners() {
-    // 1. Navigation clicks
+    // 1. Navigation clicks (Desktop Sidebar & Mobile Bottom Navigation)
     this.navItems.forEach(item => {
       item.addEventListener("click", () => {
         const view = item.dataset.view;
         this.switchView(view);
+        if (view === "search" && this.searchInput) {
+          setTimeout(() => this.searchInput.focus(), 120);
+        }
       });
     });
+
+    // Tap-to-expand Mini Player on mobile / floating player
+    if (this.playerDock) {
+      this.playerDock.addEventListener("click", (e) => {
+        if (e.target.closest("button") || e.target.closest("input") || e.target.closest(".range-slider")) return;
+        this.toggleCinemaMode(true);
+      });
+    }
 
     // 2. Search Box Events
     if (this.searchInput) {
@@ -478,13 +497,55 @@ class OxyzenApp {
       });
     }
 
-    // 5. Cinema Mode Controls
+    // 5. Cinema Mode & Mobile Drawer Controls
     if (this.cinemaToggleBtn) {
       this.cinemaToggleBtn.addEventListener("click", () => this.toggleCinemaMode(true));
     }
     if (this.cinemaCloseBtn) {
       this.cinemaCloseBtn.addEventListener("click", () => this.toggleCinemaMode(false));
     }
+    if (this.cinemaPlayPauseBtn) {
+      this.cinemaPlayPauseBtn.addEventListener("click", () => this.togglePlayPause());
+    }
+    if (this.cinemaPrevBtn) {
+      this.cinemaPrevBtn.addEventListener("click", () => this.playPrevious());
+    }
+    if (this.cinemaNextBtn) {
+      this.cinemaNextBtn.addEventListener("click", () => this.playNext());
+    }
+    if (this.cinemaShuffleBtn) {
+      this.cinemaShuffleBtn.addEventListener("click", () => {
+        this.isShuffle = !this.isShuffle;
+        if (this.shuffleBtn) this.shuffleBtn.classList.toggle("active", this.isShuffle);
+        this.cinemaShuffleBtn.classList.toggle("active", this.isShuffle);
+        this.showToast(this.isShuffle ? "🔀 Shuffle On" : "🔀 Shuffle Off");
+      });
+    }
+    if (this.cinemaRepeatBtn) {
+      this.cinemaRepeatBtn.addEventListener("click", () => {
+        if (this.repeatMode === "off") this.repeatMode = "all";
+        else if (this.repeatMode === "all") this.repeatMode = "one";
+        else this.repeatMode = "off";
+        
+        const text = this.repeatMode === "one" ? "🔂" : "🔁";
+        if (this.repeatBtn) {
+          this.repeatBtn.innerHTML = text;
+          this.repeatBtn.classList.toggle("active", this.repeatMode !== "off");
+        }
+        this.cinemaRepeatBtn.innerHTML = text;
+        this.cinemaRepeatBtn.classList.toggle("active", this.repeatMode !== "off");
+        this.showToast(`Repeat: ${this.repeatMode.toUpperCase()}`);
+      });
+    }
+    if (this.cinemaLyricsToggleBtn) {
+      this.cinemaLyricsToggleBtn.addEventListener("click", () => {
+        const lyricsCol = document.getElementById("ambient-lyrics-column");
+        if (lyricsCol) {
+          lyricsCol.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+    }
+
     if (this.cinemaFullscreenBtn) {
       this.cinemaFullscreenBtn.addEventListener("click", () => {
         if (!document.fullscreenElement) {
@@ -595,6 +656,116 @@ class OxyzenApp {
     this.setupEqualizerUI();
     this.setupSoundSyncSpaceUI();
     this.setupKeyboardShortcuts();
+    this.setupMobileTouchGestures();
+  }
+
+  // -------------------------------------------------------------
+  // CINEMA MODE & FULL-SCREEN NOW PLAYING DRAWER
+  // -------------------------------------------------------------
+  toggleCinemaMode(open = true) {
+    if (!this.cinemaOverlay) return;
+    if (open) {
+      if (!this.currentTrack && this.queue.length > 0) {
+        this.playTrack(this.queue[0]);
+      }
+      this.cinemaOverlay.classList.add("active");
+      document.body.style.overflow = "hidden";
+      if (this.currentTrack) {
+        this.updatePlayerDockUI(this.currentTrack);
+      }
+    } else {
+      this.cinemaOverlay.classList.remove("active");
+      document.body.style.overflow = "";
+    }
+  }
+
+  // -------------------------------------------------------------
+  // MOBILE TOUCH GESTURES (SWIPE DOWN DISMISS & SWIPE TRACKS)
+  // -------------------------------------------------------------
+  setupMobileTouchGestures() {
+    if (!this.cinemaOverlay) return;
+
+    // 1. Swipe Down to Dismiss Drawer
+    let startY = 0;
+    let startX = 0;
+    let isSwiping = false;
+
+    const handleTouchStart = (e) => {
+      if (e.touches && e.touches.length === 1) {
+        startY = e.touches[0].clientY;
+        startX = e.touches[0].clientX;
+        isSwiping = true;
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!isSwiping || !e.changedTouches || e.changedTouches.length === 0) return;
+      const endY = e.changedTouches[0].clientY;
+      const endX = e.changedTouches[0].clientX;
+      const diffY = endY - startY;
+      const diffX = endX - startX;
+
+      // Downward swipe of > 60px with predominantly vertical motion
+      if (diffY > 60 && Math.abs(diffY) > Math.abs(diffX) * 1.2) {
+        this.toggleCinemaMode(false);
+      }
+      isSwiping = false;
+    };
+
+    const handleBar = document.getElementById("mobile-drawer-handle-bar");
+    const studioHeader = document.querySelector(".ambient-studio-header");
+    if (handleBar) {
+      handleBar.addEventListener("touchstart", handleTouchStart, { passive: true });
+      handleBar.addEventListener("touchend", handleTouchEnd, { passive: true });
+      handleBar.addEventListener("click", () => this.toggleCinemaMode(false));
+    }
+    if (studioHeader) {
+      studioHeader.addEventListener("touchstart", handleTouchStart, { passive: true });
+      studioHeader.addEventListener("touchend", handleTouchEnd, { passive: true });
+    }
+
+    // 2. Swipe Left / Right on Album Turntable Deck to Switch Tracks
+    const deck = document.getElementById("ambient-turntable-deck");
+    if (deck) {
+      let deckStartX = 0;
+      let deckStartY = 0;
+
+      deck.addEventListener("touchstart", (e) => {
+        if (e.touches && e.touches.length === 1) {
+          deckStartX = e.touches[0].clientX;
+          deckStartY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      deck.addEventListener("touchend", (e) => {
+        if (!e.changedTouches || e.changedTouches.length === 0) return;
+        const deckEndX = e.changedTouches[0].clientX;
+        const deckEndY = e.changedTouches[0].clientY;
+        const deltaX = deckEndX - deckStartX;
+        const deltaY = deckEndY - deckStartY;
+
+        // Predominantly horizontal swipe > 45px
+        if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX < 0) {
+            // Swipe Left -> Next Track
+            deck.style.transition = "transform 0.18s ease-out";
+            deck.style.transform = "translateX(-30px)";
+            setTimeout(() => {
+              deck.style.transform = "";
+              this.playNext();
+            }, 180);
+          } else {
+            // Swipe Right -> Previous Track
+            deck.style.transition = "transform 0.18s ease-out";
+            deck.style.transform = "translateX(30px)";
+            setTimeout(() => {
+              deck.style.transform = "";
+              this.playPrevious();
+            }, 180);
+          }
+        }
+      }, { passive: true });
+    }
   }
 
   // -------------------------------------------------------------

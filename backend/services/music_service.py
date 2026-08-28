@@ -3,6 +3,8 @@ import time
 import json
 import logging
 import asyncio
+import shutil
+import tempfile
 import urllib3
 from typing import List, Dict, Optional, Any
 # pyrefly: ignore [missing-import]
@@ -72,57 +74,88 @@ def _evict_expired_cache() -> None:
         for k in sorted_keys[:80]:
             stream_cache.pop(k, None)
 
-def get_cookie_file_path() -> Optional[str]:
+def get_writable_cookie_path() -> Optional[str]:
     """
-    Locates or creates a cookies file for yt-dlp to bypass YouTube bot detection on cloud/datacenter IPs.
-    Checks:
-    1. Direct env vars: YTDL_COOKIEFILE, COOKIE_FILE_PATH, COOKIES_PATH
-    2. Render secret file standard location: /etc/secrets/cookies.txt
-    3. Project root: ./cookies.txt or ./backend/cookies.txt
-    4. Inline cookie text env var: YTDL_COOKIES or YTDL_COOKIES_TEXT (auto-written to disk)
+    Locates YouTube cookies and ensures they are located in a writable path (e.g., /tmp/cookies.txt)
+    to prevent yt-dlp [Errno 30] Read-only file system crashes on Render cloud hosting.
+    
+    Render mounts secret files at /etc/secrets/cookies.txt as a read-only filesystem.
+    When yt-dlp runs, it tries to write session state back to the cookie file.
+    Copying the file to /tmp/cookies.txt gives yt-dlp full write access.
     """
-    # Check explicitly defined path
-    for env_var in ["YTDL_COOKIEFILE", "COOKIE_FILE_PATH", "COOKIES_PATH"]:
-        path = os.environ.get(env_var)
-        if path and os.path.exists(path):
-            logger.info(f"Using YouTube cookie file from {env_var}: {path}")
-            return path
+    target_temp = "/tmp/cookies.txt" if os.name != "nt" else os.path.join(tempfile.gettempdir(), "cookies.txt")
 
-    # Check Render Secret File mount
+    # 1. Check Render Secret File mount (/etc/secrets/cookies.txt)
     render_secret = "/etc/secrets/cookies.txt"
     if os.path.exists(render_secret):
-        logger.info(f"Using YouTube cookie file from Render secret: {render_secret}")
-        return render_secret
+        try:
+            shutil.copyfile(render_secret, target_temp)
+            try:
+                os.chmod(target_temp, 0o600)
+            except Exception:
+                pass
+            logger.info(f"Copied Render read-only cookie secret ({render_secret}) to writable path: {target_temp}")
+            return target_temp
+        except Exception as e:
+            logger.warning(f"Failed to copy Render secret {render_secret} to {target_temp}: {e}")
+            return render_secret
 
-    # Check local workspace
+    # 2. Check explicit env vars: YTDL_COOKIEFILE, COOKIE_FILE_PATH, COOKIES_PATH
+    for env_var in ["YTDL_COOKIEFILE", "COOKIE_FILE_PATH", "COOKIES_PATH"]:
+        src_path = os.environ.get(env_var)
+        if src_path and os.path.exists(src_path):
+            try:
+                shutil.copyfile(src_path, target_temp)
+                try:
+                    os.chmod(target_temp, 0o600)
+                except Exception:
+                    pass
+                logger.info(f"Copied cookie file from {env_var} ({src_path}) to writable path: {target_temp}")
+                return target_temp
+            except Exception as e:
+                logger.warning(f"Could not copy {src_path} to temp cookie path: {e}")
+                return src_path
+
+    # 3. Check local workspace cookies.txt
     for local_path in [
         os.path.join(os.getcwd(), "cookies.txt"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies.txt"),
     ]:
         if os.path.exists(local_path):
-            logger.info(f"Using local YouTube cookie file: {local_path}")
-            return local_path
+            try:
+                shutil.copyfile(local_path, target_temp)
+                logger.info(f"Using local workspace YouTube cookie file (copied to {target_temp}): {local_path}")
+                return target_temp
+            except Exception:
+                logger.info(f"Using local workspace YouTube cookie file directly: {local_path}")
+                return local_path
 
-    # Check if raw cookie contents were passed as an environment variable
+    # 4. Check if raw cookie contents were passed as an environment variable
     raw_cookies = os.environ.get("YTDL_COOKIES") or os.environ.get("YTDL_COOKIES_TEXT")
     if raw_cookies and len(raw_cookies.strip()) > 20:
         try:
-            temp_cookie_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ytdl_cookies.txt")
-            with open(temp_cookie_path, "w", encoding="utf-8") as f:
+            with open(target_temp, "w", encoding="utf-8") as f:
                 f.write(raw_cookies.strip())
-            logger.info(f"Successfully initialized cookie file from YTDL_COOKIES environment variable.")
-            return temp_cookie_path
+            try:
+                os.chmod(target_temp, 0o600)
+            except Exception:
+                pass
+            logger.info(f"Successfully initialized writable cookie file at {target_temp} from YTDL_COOKIES env var.")
+            return target_temp
         except Exception as e:
-            logger.warning(f"Failed to write YTDL_COOKIES env var to file: {e}")
+            logger.warning(f"Failed to write YTDL_COOKIES env var to {target_temp}: {e}")
 
     return None
+
+# Alias for backward compatibility
+get_cookie_file_path = get_writable_cookie_path
 
 def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
     """
     Builds optimized yt-dlp options with dynamic cookie, proxy, PO token, and client emulation.
     """
-    cookie_file = get_cookie_file_path()
+    cookie_file = get_writable_cookie_path()
     proxy = os.environ.get("YTDL_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
     po_token = os.environ.get("YTDL_PO_TOKEN") or os.environ.get("PO_TOKEN")
     visitor_data = os.environ.get("YTDL_VISITOR_DATA") or os.environ.get("VISITOR_DATA")

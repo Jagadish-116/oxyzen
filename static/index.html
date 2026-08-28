@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OXYZEN - Pure Unchained High-Fidelity Music</title>
+  <meta name="description" content="Oxyzen is the ultimate ad-free luxury music streaming platform with real-time audio visualizers, 10-band equalizer, 8D spatial audio, synced lyrics, multilingual mood hubs, and SoundSync live rooms.">
+  <link rel="icon" type="image/png" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <div id="app-container">
+    
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside id="sidebar">
+      <!-- Luxury Brand Logo -->
+      <div class="brand-logo-container" onclick="window.oxyzen && window.oxyzen.switchView('explore')">
+        <img src="/static/assets/logo.png" alt="OXYZEN" class="brand-logo-img">
+        <div>
+          <span class="brand-text">
+            <span class="brand-silver">O</span><span class="brand-gold">XYZ</span><span class="brand-silver">EN</span>
+          </span>
+          <span class="brand-tag">PRO</span>
+        </div>
+      </div>
+
+      <!-- Main Navigation -->
+      <div class="nav-section">
+        <div class="nav-section-title">Discover</div>
+        <div class="nav-item active" data-view="explore">
+          <span class="nav-icon">🪐</span>
+          <span>Explore Feed</span>
+        </div>
+        <div class="nav-item" data-view="search">
+          <span class="nav-icon">🔍</span>
+          <span>Search Audio</span>
+        </div>
+        <div class="nav-item" data-view="moods">
+          <span class="nav-icon">🎭</span>
+          <span>Mood Stations</span>
+          <span class="nav-badge" style="background: rgba(244, 63, 94, 0.18); color: #F43F5E;">NEW</span>
+        </div>
+        <div class="nav-item" data-view="vibe">
+          <span class="nav-icon">📡</span>
+          <span>Vibe Radar</span>
+          <span class="nav-badge" style="background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan);">AI</span>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Library Section -->
+      <div class="nav-section">
+        <div class="nav-section-title">My Collection</div>
+        <div class="nav-item" data-view="liked">
+          <span class="nav-icon">❤️</span>
+          <span>Liked Songs</span>
+          <span class="nav-badge" id="likes-badge">0</span>
+        </div>
+        <div class="nav-item" data-view="playlists">
+          <span class="nav-icon">📁</span>
+          <span>My Playlists</span>
+          <span class="nav-badge" id="playlists-badge">0</span>
+        </div>
+        <div class="nav-item" data-view="history">
+          <span class="nav-icon">🕒</span>
+          <span>Recent History</span>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- SoundSync Live Party Space -->
+      <div class="nav-section">
+        <div class="nav-section-title">Live Space</div>
+        <div class="nav-item" data-view="sync-space" style="color: var(--accent-cyan);">
+          <span class="nav-icon">🎧</span>
+          <span>SoundSync Space</span>
+          <span class="nav-badge" id="sync-sidebar-badge" style="background: rgba(34, 211, 238, 0.2); color: var(--accent-cyan);">LIVE</span>
+        </div>
+      </div>
+
+      <!-- User Profile Sidebar Card -->
+      <div class="sidebar-user-card" id="sidebar-user-profile-btn">
+        <div class="sidebar-user-avatar" id="sidebar-user-avatar">👑</div>
+        <div class="sidebar-user-meta">
+          <div class="sidebar-user-name" id="sidebar-user-name">Oxyzen Listener</div>
+          <div class="sidebar-user-langs" id="sidebar-user-langs">EN • TE • HI</div>
+        </div>
+        <span style="font-size: 11px; opacity: 0.5;">⚙️</span>
+      </div>
+
+      <!-- Audio Mode Master Widget -->
+      <div class="sidebar-audio-mode-widget">
+        <div class="sidebar-audio-mode-header">
+          <span>Acoustic Profile</span>
+          <span style="color: var(--gold-accent);">Hi-Res 320k</span>
+        </div>
+        <div class="audio-mode-pill" id="sidebar-profile-pill">
+          <span class="audio-mode-pulse-dot"></span>
+          <span>Master Hi-Fi</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== TOPBAR ==================== -->
+    <header id="topbar">
+      <!-- Search Engine with Autocomplete -->
+      <div class="search-bar-wrapper">
+        <span class="search-icon-left">🔍</span>
+        <input type="text" id="search-input" class="search-input-box" placeholder="Search songs, artists, albums, playlists..." autocomplete="off">
+        <button id="search-clear" class="search-clear-btn">✕</button>
+        <div id="search-suggestions" class="search-suggestions-dropdown"></div>
+      </div>
+
+      <!-- Topbar Action Controls -->
+      <div class="topbar-actions">
+        <button class="btn-luxury btn-sync-room" id="topbar-sync-btn" onclick="window.oxyzen && window.oxyzen.switchView('sync-space')">
+          <span>🎧</span>
+          <span>SoundSync Space</span>
+        </button>
+        <button class="btn-icon-round" id="eq-open-btn" title="Equalizer & 8D Studio">
+          🎛️
+        </button>
+        <button class="btn-icon-round" id="cinema-toggle-btn" title="Ambient Cinema Mode">
+          ✨
+        </button>
+        <button class="topbar-profile-pill" id="topbar-profile-btn" title="User Profile & Language Preferences">
+          <span id="topbar-avatar">👑</span>
+          <span id="topbar-username">Profile</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== MAIN VIEWPORT ==================== -->
+    <main id="main-content">
+
+      <!-- 1. EXPLORE VIEW -->
+      <section id="view-explore" class="page-view active">
+        <!-- Hero Luxury Banner -->
+        <div class="hero-banner">
+          <div class="hero-content">
+            <span class="hero-badge">✦ PURE LIBERATED AUDIO</span>
+            <h1 class="hero-title">Breathe The Sound</h1>
+            <p class="hero-desc">Zero ads. Unlimited skips. 100% unrestricted background playback with studio-grade spatial fidelity and adaptive recommendations.</p>
+            <div class="hero-actions">
+              <button class="btn-luxury btn-gold-action" onclick="window.oxyzen && window.oxyzen.switchView('moods')">
+                <span>🎭</span>
+                <span>Mood Stations</span>
+              </button>
+              <button class="btn-luxury btn-sync-room" onclick="window.oxyzen && window.oxyzen.switchView('sync-space')">
+                <span>🎧</span>
+                <span>Join SoundSync Space</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Mood Shortcuts -->
+        <div class="mood-chips-container">
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('love')">💖 Romantic Love</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('breakup')">💔 Breakup</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('feel_good')">☀️ Feel Good</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('rock')">⚡ Rock & Metal</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('heroic')">🛡️ Heroic Epic</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('lofi')">🌌 Midnight Lofi</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('workout')">🔥 Workout Pump</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('party')">💃 Party Drops</div>
+          <div class="mood-chip" onclick="window.oxyzen && window.oxyzen.loadMoodStation('sad')">🌧️ Melancholy</div>
+        </div>
+
+        <!-- Explore Feed Dynamically Injected Sections -->
+        <div id="explore-feed-container" class="explore-sections-wrapper"></div>
+      </section>
+
+      <!-- 2. MOOD STATIONS VIEW -->
+      <section id="view-moods" class="page-view">
+        <div class="hero-banner" style="background: linear-gradient(135deg, rgba(244, 63, 94, 0.22), rgba(17, 17, 21, 0.9)); margin-bottom: 24px;">
+          <div class="hero-content">
+            <span class="hero-badge" style="color: #F43F5E; border-color: rgba(244, 63, 94, 0.3);">MULTILINGUAL MOOD MATRIX</span>
+            <h1 class="hero-title">Acoustic Mood Stations</h1>
+            <p class="hero-desc" id="mood-hub-languages-desc">Curated emotional albums tailored to your preferred languages (English, Telugu, Hindi)</p>
+            <div class="hero-actions">
+              <button class="btn-luxury" id="mood-customize-languages-btn">🌐 Change Preferred Languages</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Moods Selection Grid -->
+        <div class="moods-cards-grid" id="moods-categories-grid"></div>
+
+        <!-- Active Mood Playlist Container -->
+        <div id="active-mood-playlist-container" style="margin-top: 36px; display: none;"></div>
+      </section>
+
+      <!-- 3. SEARCH RESULTS VIEW -->
+      <section id="view-search" class="page-view">
+        <!-- Filter Category Chips -->
+        <div class="search-filter-chips-wrapper">
+          <div class="search-filter-chip active" data-filter="all">All Results</div>
+          <div class="search-filter-chip" data-filter="songs">Songs Only</div>
+          <div class="search-filter-chip" data-filter="artists">Artists</div>
+        </div>
+        <div id="search-results-container"></div>
+      </section>
+
+      <!-- 4. VIBE RADAR (AI ACOUSTIC MATCHING) -->
+      <section id="view-vibe" class="page-view">
+        <div id="vibe-station-container"></div>
+      </section>
+
+      <!-- 5. LIKED SONGS VIEW -->
+      <section id="view-liked" class="page-view">
+        <div id="liked-songs-container"></div>
+      </section>
+
+      <!-- 6. HISTORY VIEW -->
+      <section id="view-history" class="page-view">
+        <div id="history-container"></div>
+      </section>
+
+      <!-- 7. CUSTOM PLAYLISTS VIEW -->
+      <section id="view-playlists" class="page-view">
+        <div id="playlists-container"></div>
+      </section>
+
+      <!-- 8. PLAYLIST DETAIL VIEW -->
+      <section id="view-playlist-detail" class="page-view">
+        <div id="playlist-detail-container"></div>
+      </section>
+
+      <!-- 7. SOUNDSYNC DEDICATED SPACE -->
+      <section id="view-sync-space" class="page-view">
+        
+        <!-- Lobby View (When not inside a room) -->
+        <div id="sync-space-lobby" class="sync-lobby-wrapper">
+          <div class="sync-lobby-hero">
+            <div class="sync-hero-badge-pill">
+              <span class="pulse-live-dot"></span>
+              <span>HIGH-FIDELITY COLLABORATIVE AUDIO</span>
+            </div>
+            <h1 class="sync-lobby-title">SoundSync <span class="text-gold-gradient">Space</span></h1>
+            <p class="sync-lobby-desc">Broadcast synchronous lossless music across all your devices and friends. Be the master DJ, pass co-host admin controls, accept live song requests, and react in real time.</p>
+          </div>
+
+          <div class="sync-lobby-grid">
+            <!-- Host Panel Card -->
+            <div class="sync-lobby-panel sync-host-panel">
+              <div class="sync-panel-header">
+                <div class="sync-panel-icon-wrap host-icon">
+                  <span>👑</span>
+                </div>
+                <div class="sync-panel-header-text">
+                  <h3 class="sync-panel-title">Host a Live Lounge</h3>
+                  <p class="sync-panel-sub">Create your private acoustic party & manage listener requests</p>
+                </div>
+              </div>
+
+              <div class="sync-form-section">
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Your DJ Display Name</label>
+                  <div class="sync-field-input-wrap">
+                    <span class="sync-field-icon">🎧</span>
+                    <input type="text" id="sync-host-name-input" class="sync-field-input" placeholder="e.g. DJ Cyber" value="DJ Master">
+                  </div>
+                </div>
+
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Choose DJ Persona</label>
+                  <div class="sync-avatar-grid" id="host-avatar-picker">
+                    <button type="button" class="sync-avatar-btn active" data-avatar="👑">👑</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="🎧">🎧</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="⚡">⚡</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="🔥">🔥</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="🚀">🚀</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="💎">💎</button>
+                  </div>
+                </div>
+
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Custom Room Code <span class="sync-label-hint">(Optional • 3-8 chars)</span></label>
+                  <div class="sync-field-input-wrap">
+                    <span class="sync-field-icon">🔒</span>
+                    <input type="text" id="sync-custom-code-input" class="sync-field-input sync-code-input" placeholder="e.g. OXYZEN" maxlength="8">
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-luxury btn-gold-action sync-action-btn" id="sync-host-launch-btn">
+                <span>🚀</span>
+                <span>Launch SoundSync Lounge</span>
+              </button>
+            </div>
+
+            <!-- Join Panel Card -->
+            <div class="sync-lobby-panel sync-join-panel">
+              <div class="sync-panel-header">
+                <div class="sync-panel-icon-wrap join-icon">
+                  <span>📻</span>
+                </div>
+                <div class="sync-panel-header-text">
+                  <h3 class="sync-panel-title">Join Existing Lounge</h3>
+                  <p class="sync-panel-sub">Enter an active room code to sync playback and chat live</p>
+                </div>
+              </div>
+
+              <div class="sync-form-section">
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Enter 6-Character Room Code</label>
+                  <div class="sync-code-entry-box">
+                    <input type="text" id="sync-join-code-input" class="sync-code-hero-input" placeholder="ABC123" maxlength="8" autocomplete="off" spellcheck="false">
+                    <div id="sync-code-status-msg" class="sync-code-status"></div>
+                  </div>
+                </div>
+
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Your Listener Nickname</label>
+                  <div class="sync-field-input-wrap">
+                    <span class="sync-field-icon">👤</span>
+                    <input type="text" id="sync-listener-name-input" class="sync-field-input" placeholder="e.g. Alex" value="Listener">
+                  </div>
+                </div>
+
+                <div class="sync-field-group">
+                  <label class="sync-field-label">Choose Listener Persona</label>
+                  <div class="sync-avatar-grid" id="listener-avatar-picker">
+                    <button type="button" class="sync-avatar-btn" data-avatar="👑">👑</button>
+                    <button type="button" class="sync-avatar-btn active" data-avatar="🎧">🎧</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="⚡">⚡</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="🔥">🔥</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="🚀">🚀</button>
+                    <button type="button" class="sync-avatar-btn" data-avatar="💎">💎</button>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-luxury btn-sync-room sync-action-btn" id="sync-join-enter-btn">
+                <span>🎧</span>
+                <span>Enter SoundSync Lounge</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Feature Highlights Row -->
+          <div class="sync-lobby-features">
+            <div class="sync-feature-item">
+              <span class="sync-feature-icon">⚡</span>
+              <div class="sync-feature-info">
+                <strong>Sub-ms Drift Correction</strong>
+                <span>Automatic drift compensation keeps all speakers in flawless lockstep.</span>
+              </div>
+            </div>
+            <div class="sync-feature-item">
+              <span class="sync-feature-icon">🙋‍♂️</span>
+              <div class="sync-feature-info">
+                <strong>Song Request Booth</strong>
+                <span>Listeners submit songs with 1-tap DJ host queue acceptance.</span>
+              </div>
+            </div>
+            <div class="sync-feature-item">
+              <span class="sync-feature-icon">🛡️</span>
+              <div class="sync-feature-info">
+                <strong>Co-Host Delegation</strong>
+                <span>Host can grant co-host admin privileges to any connected listener.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Room Space (When inside a live SoundSync Room) -->
+        <div id="sync-space-room" class="sync-space-container" style="display: none;">
+          
+          <!-- Top Room Header Bar -->
+          <div class="sync-room-header-bar">
+            <div class="sync-room-info-left">
+              <div class="sync-live-pulse-badge">
+                <span class="live-dot"></span>
+                <span>LIVE LOUNGE</span>
+              </div>
+              <h2 class="sync-room-title" id="room-display-name">SoundSync Lounge</h2>
+              <div class="sync-room-host-tag" id="room-host-display">👑 Host: DJ Host</div>
+            </div>
+
+            <div class="sync-room-actions-right">
+              <!-- Room Code Box with COPY ROOM CODE ONLY -->
+              <div class="sync-code-pill-wrapper">
+                <div class="sync-code-label">ROOM CODE</div>
+                <div class="sync-code-text" id="room-code-badge">OXYZEN</div>
+                <button class="btn-luxury btn-copy-code" id="sync-copy-code-btn" title="Copy 6-letter room code">
+                  <span>📋</span>
+                  <span>Copy Code</span>
+                </button>
+              </div>
+
+              <!-- Profile Quick Edit -->
+              <div class="sync-profile-pill" id="sync-profile-edit-pill" title="Click to customize your nickname and avatar">
+                <span id="sync-my-avatar">🎧</span>
+                <span id="sync-my-name">You</span>
+                <span style="font-size: 11px; opacity: 0.6;">✏️</span>
+              </div>
+
+              <button class="btn-luxury btn-leave-room" id="sync-space-leave-btn">
+                <span>🚪</span>
+                <span>Leave</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Space Split Content (Audio Stage / Music Selector & Live Chat) -->
+          <div class="sync-room-split-layout">
+            
+            <!-- Left Stage: Now Playing + Song Requests + In-Room Search & Queue + AI Suggestions -->
+            <div class="sync-stage-column">
+              
+              <!-- Now Playing Hero in Space -->
+              <div class="sync-stage-player-card">
+                <div class="sync-art-wrapper">
+                  <img src="/static/assets/logo.png" class="sync-stage-art" id="sync-stage-art" alt="Now Playing">
+                  <div class="sync-art-glow"></div>
+                </div>
+
+                <div class="sync-stage-meta">
+                  <div class="sync-stage-title" id="sync-stage-title">No Track Playing</div>
+                  <div class="sync-stage-artist" id="sync-stage-artist">Select a song below to start the party</div>
+                  
+                  <div class="sync-stage-progress-bar">
+                    <span id="sync-current-time">0:00</span>
+                    <input type="range" class="range-slider" id="sync-seek-bar" min="0" max="100" value="0" step="0.1">
+                    <span id="sync-total-time">0:00</span>
+                  </div>
+
+                  <div class="sync-stage-controls">
+                    <button class="ctrl-btn" id="sync-ctrl-prev" title="Previous Track">⏮</button>
+                    <button class="ctrl-btn play-pause-btn" id="sync-ctrl-play" title="Play / Pause">▶</button>
+                    <button class="ctrl-btn" id="sync-ctrl-next" title="Next Track">⏭</button>
+                  </div>
+                  <div class="sync-role-indicator" id="sync-role-indicator">
+                    <span>👑 DJ Host (You control playback)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Song Requests Panel (Visible to Host & Admins, showing incoming requests) -->
+              <div class="sync-requests-card" id="sync-requests-card" style="display: none;">
+                <div class="sync-card-subtitle" style="justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span>🙋‍♂️</span>
+                    <span>Incoming Song Requests (<span id="sync-requests-count">0</span>)</span>
+                  </div>
+                  <span class="nav-badge" style="background: rgba(245, 197, 66, 0.2); color: var(--gold-accent);">HOST / ADMIN PANEL</span>
+                </div>
+                <div id="sync-requests-list" class="sync-requests-list"></div>
+              </div>
+
+              <!-- In-Room Music Selector & Search -->
+              <div class="sync-selector-card">
+                <div class="sync-card-subtitle">
+                  <span>🔍</span>
+                  <span>Select & Request Songs for the Lounge</span>
+                </div>
+                <div class="sync-search-bar-wrap">
+                  <input type="text" id="sync-inroom-search-input" class="search-input-box" placeholder="Search any song, artist, or vibe to play/request...">
+                  <button class="btn-luxury btn-gold-action" id="sync-inroom-search-btn">Search</button>
+                </div>
+                <div id="sync-search-results-list" class="sync-inroom-results"></div>
+              </div>
+
+              <!-- Room Party Queue -->
+              <div class="sync-queue-card">
+                <div class="sync-card-subtitle">
+                  <span>📑</span>
+                  <span>Synchronized Room Queue (<span id="sync-room-queue-count">0</span>)</span>
+                </div>
+                <div id="sync-room-queue-list" class="sync-room-queue-items">
+                  <div style="color: var(--silver-muted); font-size: 13px; padding: 12px 0;">Queue is empty. Search and add tracks above!</div>
+                </div>
+              </div>
+
+              <!-- AI Party Suggestions -->
+              <div class="sync-suggest-card">
+                <div class="sync-card-subtitle">
+                  <span>✨</span>
+                  <span>Suggested Party Tracks</span>
+                </div>
+                <div id="sync-party-suggestions-list" class="cards-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));"></div>
+              </div>
+
+            </div>
+
+            <!-- Right Column: Active Listeners & Live Chat Stream -->
+            <div class="sync-chat-column">
+              
+              <!-- Active Listeners Strip with Admin Management -->
+              <div class="sync-listeners-panel">
+                <div class="sync-panel-heading">
+                  <span>👥 Listeners & Co-Hosts</span>
+                  <span class="nav-badge" id="sync-listener-count-badge" style="background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan);">1</span>
+                </div>
+                <div class="sync-listeners-avatar-row" id="sync-active-listeners-row"></div>
+              </div>
+
+              <!-- Live Chat Container -->
+              <div class="sync-chat-panel">
+                <div class="sync-panel-heading">
+                  <span>💬 Real-Time Lounge Chat</span>
+                  <span style="font-size: 11px; color: var(--silver-muted);">End-to-End Synced</span>
+                </div>
+
+                <!-- Chat Stream -->
+                <div class="sync-chat-stream" id="sync-chat-stream">
+                  <div class="chat-system-msg">✦ Welcome to SoundSync Lounge! Chat, request songs, and vibe together in real-time.</div>
+                </div>
+
+                <!-- Floating Emoji Reaction Bar -->
+                <div class="sync-reaction-bar">
+                  <button class="sync-emoji-bubble" data-emoji="🔥">🔥</button>
+                  <button class="sync-emoji-bubble" data-emoji="🚀">🚀</button>
+                  <button class="sync-emoji-bubble" data-emoji="❤️">❤️</button>
+                  <button class="sync-emoji-bubble" data-emoji="👏">👏</button>
+                  <button class="sync-emoji-bubble" data-emoji="💃">💃</button>
+                  <button class="sync-emoji-bubble" data-emoji="✨">✨</button>
+                </div>
+
+                <!-- Chat Input Form -->
+                <form id="sync-chat-form" class="sync-chat-form">
+                  <input type="text" id="sync-chat-input" class="sync-chat-input-field" placeholder="Send a message to the room..." maxlength="200" autocomplete="off">
+                  <button type="submit" class="btn-luxury btn-gold-action" id="sync-chat-send-btn">Send</button>
+                </form>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- ==================== PLAYER DOCK ==================== -->
+    <footer id="player-dock">
+      <!-- 60fps Real-Time Canvas Spectrum Visualizer Behind Player -->
+      <canvas id="dock-visualizer-canvas" width="800" height="88"></canvas>
+
+      <!-- Left: Track Details -->
+      <div class="player-left">
+        <div class="player-art-wrap">
+          <img src="/static/assets/logo.png" id="player-thumb" class="player-art-img" alt="Track Art">
+          <div class="player-art-badge">HD</div>
+        </div>
+        <div class="player-meta">
+          <div class="player-track-title" id="player-title">Oxyzen Audio</div>
+          <div class="player-track-artist" id="player-artist">Ready to Stream</div>
+        </div>
+        <button class="btn-row-action" id="player-like-btn" title="Like Song">🤍</button>
+      </div>
+
+      <!-- Center: Transport Controls & Seekbar -->
+      <div class="player-center">
+        <div class="transport-controls">
+          <button class="ctrl-btn" id="shuffle-btn" title="Shuffle (S)">🔀</button>
+          <button class="ctrl-btn" id="prev-btn" title="Previous Track (←)">⏮</button>
+          <button class="ctrl-btn play-pause-btn" id="play-pause-btn" title="Play / Pause (Space)">▶</button>
+          <button class="ctrl-btn" id="next-btn" title="Next Track (→)">⏭</button>
+          <button class="ctrl-btn" id="repeat-btn" title="Repeat (R)">🔁</button>
+        </div>
+        <div class="progress-container">
+          <span class="time-label" id="current-time-label">0:00</span>
+          <input type="range" class="range-slider" id="seek-slider" min="0" max="100" value="0" step="0.1">
+          <span class="time-label" id="total-time-label">0:00</span>
+        </div>
+      </div>
+
+      <!-- Right: Utility Controls & Volume -->
+      <div class="player-right">
+        <button class="ctrl-btn" id="spatial-8d-btn" title="Toggle 8D Spatial Audio" style="font-size: 11px; font-weight: 700; border: 1px solid var(--border-glass); border-radius: var(--radius-full); padding: 3px 8px;">
+          8D
+        </button>
+        <button class="ctrl-btn" id="lyrics-toggle-btn" title="Synchronized Lyrics">
+          🎙️
+        </button>
+        <button class="ctrl-btn" id="queue-toggle-btn" title="Queue">
+          📑 <span id="queue-badge" class="nav-badge" style="font-size: 9px; padding: 1px 4px; margin-left: 2px;">0</span>
+        </button>
+        <div class="volume-wrapper">
+          <span id="volume-icon" style="cursor: pointer; font-size: 14px;">🔊</span>
+          <input type="range" class="range-slider" id="volume-slider" min="0" max="1" step="0.01" value="0.8">
+        </div>
+      </div>
+    </footer>
+
+    <!-- Mobile Bottom Navigation Bar (Visible on mobile/tablet viewports) -->
+    <nav id="mobile-bottom-nav" class="mobile-bottom-nav">
+      <div class="mobile-nav-tab active" data-view="explore">
+        <span class="mobile-nav-icon">🏠</span>
+        <span class="mobile-nav-label">Explore</span>
+      </div>
+      <div class="mobile-nav-tab" data-view="moods">
+        <span class="mobile-nav-icon">🎭</span>
+        <span class="mobile-nav-label">Moods</span>
+      </div>
+      <div class="mobile-nav-tab" data-view="vibe">
+        <span class="mobile-nav-icon">📡</span>
+        <span class="mobile-nav-label">Radar</span>
+      </div>
+      <div class="mobile-nav-tab" data-view="sync-space">
+        <span class="mobile-nav-icon">🎧</span>
+        <span class="mobile-nav-label">SoundSync</span>
+      </div>
+      <div class="mobile-nav-tab" data-view="liked">
+        <span class="mobile-nav-icon">❤️</span>
+        <span class="mobile-nav-label">Library</span>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- ==================== ALL-NEW ULTRA-AESTHETIC AMBIENT STUDIO ==================== -->
+  <div id="cinema-mode-overlay">
+    <!-- Multi-Layer Living Dynamic Aurora Mesh -->
+    <div class="ambient-aurora-backdrop" id="cinema-backdrop"></div>
+    <div class="ambient-aurora-mesh">
+      <div class="ambient-orb ambient-orb-1"></div>
+      <div class="ambient-orb ambient-orb-2"></div>
+      <div class="ambient-orb ambient-orb-3"></div>
+    </div>
+    <div class="ambient-noise-overlay"></div>
+
+    <!-- Top Ambient Header Navigation -->
+    <header class="ambient-studio-header">
+      <div class="ambient-header-left">
+        <div class="ambient-brand-badge">
+          <span class="ambient-brand-logo">✦ OXYZEN</span>
+          <span class="ambient-studio-tag">AMBIENT STUDIO</span>
+        </div>
+        <div class="ambient-fidelity-pill" id="ambient-fidelity-pill">
+          <span class="pulse-live-dot" style="background: var(--gold-accent); box-shadow: 0 0 8px var(--gold-accent);"></span>
+          <span>MASTER 320K • LOSSLESS STREAM</span>
+        </div>
+      </div>
+      
+      <div class="ambient-header-right">
+        <button class="ambient-header-btn" id="cinema-fullscreen-btn" title="Toggle Fullscreen (F)">
+          <span>⛶</span>
+        </button>
+        <button class="ambient-header-btn ambient-close-btn" id="cinema-close-btn" title="Exit Ambient Mode (ESC)">
+          <span>✕</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dual Acoustic Immersion Stage -->
+    <main class="ambient-studio-stage">
+      
+      <!-- Left Column: Photorealistic 3D Vinyl Turntable Showcase & Meta -->
+      <section class="ambient-deck-column">
+        <div class="ambient-turntable-deck">
+          <div class="ambient-platter-glow"></div>
+          
+          <!-- Vinyl Disc with Grooves & Rotating Art Label -->
+          <div class="ambient-vinyl-disc" id="cinema-vinyl-disc">
+            <div class="ambient-vinyl-grooves"></div>
+            <div class="ambient-vinyl-label">
+              <img src="/static/assets/logo.png" class="ambient-vinyl-art" id="cinema-art" alt="Album Art">
+              <div class="ambient-vinyl-center-spindle"></div>
+            </div>
+          </div>
+
+          <!-- Glass Sleeve Showcase Cover -->
+          <div class="ambient-sleeve-jacket">
+            <img src="/static/assets/logo.png" class="ambient-jacket-art" id="cinema-jacket-art" alt="Album Cover">
+            <div class="ambient-jacket-sheen"></div>
+          </div>
+        </div>
+
+        <!-- Track Metadata & Soundwave Badges -->
+        <div class="ambient-track-meta">
+          <h1 id="cinema-title" class="ambient-title-text">Track Title</h1>
+          <div class="ambient-artist-row">
+            <span class="ambient-gold-diamond">✦</span>
+            <p id="cinema-artist" class="ambient-artist-text">Artist Name</p>
+          </div>
+          
+          <div class="ambient-audio-badges-row">
+            <span class="ambient-audio-badge">🎧 8D BINAURAL</span>
+            <span class="ambient-audio-badge">💎 STUDIO MASTER</span>
+            <span class="ambient-audio-badge">⚡ 33⅓ RPM HI-FI</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Apple Music Sing / Large Fluid Lyrics Immersion -->
+      <section class="ambient-lyrics-column">
+        <div class="ambient-lyrics-header-bar">
+          <div class="ambient-lyrics-title-wrap">
+            <span class="lyrics-sparkle-icon">🎙️</span>
+            <span class="lyrics-title-text">Studio Synchronized Lyrics</span>
+          </div>
+          <span class="ambient-lyrics-tip">Tap any line to seek</span>
+        </div>
+
+        <!-- Smooth Fluid Lyrics Canvas -->
+        <div class="ambient-lyrics-canvas" id="cinema-lyrics">
+          <div class="cinema-lyric-line active">Enjoying high fidelity acoustic stream on Oxyzen</div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Floating Luxury Glass Console (Auto-hides on idle) -->
+    <div class="cinema-floating-dock" id="cinema-floating-dock">
+      <!-- Scrub Progress Bar -->
+      <div class="cinema-dock-progress">
+        <span class="time-label" id="cinema-current-time">0:00</span>
+        <input type="range" class="range-slider" id="cinema-seek-slider" min="0" max="100" value="0" step="0.1">
+        <span class="time-label" id="cinema-total-time">0:00</span>
+      </div>
+
+      <!-- Dock Transport Controls -->
+      <div class="cinema-dock-controls">
+        <button class="ctrl-btn" id="cinema-like-btn" title="Like Track">🤍</button>
+        <button class="ctrl-btn" onclick="window.oxyzen && window.oxyzen.playPrevious()" title="Previous (←)">⏮</button>
+        <button class="ctrl-btn play-pause-btn cinema-dock-play" id="cinema-play-pause-btn" onclick="window.oxyzen && window.oxyzen.togglePlayPause()" title="Play / Pause (Space)">▶</button>
+        <button class="ctrl-btn" onclick="window.oxyzen && window.oxyzen.playNext()" title="Next (→)">⏭</button>
+        <button class="ctrl-btn" id="cinema-spatial-btn" title="Toggle 8D Spatial Audio" style="font-size: 11px; font-weight: 800; border: 1px solid var(--border-glass); border-radius: var(--radius-full); padding: 4px 12px;">8D SPATIAL</button>
+        
+        <div class="cinema-dock-volume">
+          <span>🔊</span>
+          <input type="range" class="range-slider" id="cinema-volume-slider" min="0" max="1" step="0.01" value="0.8">
+        </div>
+      </div>
+    </div>
+
+    <!-- 60fps Real-time Fluid Wave Visualizer Canvas -->
+    <canvas id="cinema-visualizer-canvas" width="1400" height="120"></canvas>
+  </div>
+
+  <!-- ==================== USER PROFILE & LANGUAGE PREFERENCES MODAL ==================== -->
+  <div class="modal-overlay" id="user-profile-modal">
+    <div class="modal-dialog profile-modal-dialog">
+      <div class="modal-header profile-modal-header">
+        <div class="modal-title">
+          <span class="profile-header-sparkle">✨</span>
+          <span>Listener Sound Profile</span>
+        </div>
+        <button class="modal-close-btn" id="profile-close-btn">✕</button>
+      </div>
+
+      <div class="modal-body profile-modal-body">
+        
+        <!-- Hero Identity Banner Card -->
+        <div class="profile-hero-card">
+          <div class="profile-avatar-wrapper">
+            <div class="profile-modal-avatar-preview" id="profile-modal-avatar-preview">👑</div>
+            <div class="profile-avatar-aura"></div>
+          </div>
+          <div class="profile-identity-meta">
+            <label class="profile-section-label">Your Listener Nickname</label>
+            <input type="text" id="profile-name-input" class="profile-hero-input" placeholder="e.g. Alex" value="Oxyzen Listener">
+            <div class="profile-status-badge">
+              <span class="pulse-live-dot" style="background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan);"></span>
+              <span>Acoustic Hi-Fi Member</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Avatar Selection Grid -->
+        <div class="profile-config-section">
+          <div class="profile-section-header">
+            <span class="profile-section-label">Choose Listener Persona</span>
+            <span class="profile-section-hint">Pick your listening vibe</span>
+          </div>
+          <div class="profile-avatar-grid" id="profile-avatar-picker">
+            <div class="profile-avatar-pill active" data-avatar="👑">👑</div>
+            <div class="profile-avatar-pill" data-avatar="🎧">🎧</div>
+            <div class="profile-avatar-pill" data-avatar="⚡">⚡</div>
+            <div class="profile-avatar-pill" data-avatar="🔥">🔥</div>
+            <div class="profile-avatar-pill" data-avatar="🚀">🚀</div>
+            <div class="profile-avatar-pill" data-avatar="💎">💎</div>
+            <div class="profile-avatar-pill" data-avatar="🪐">🪐</div>
+            <div class="profile-avatar-pill" data-avatar="✨">✨</div>
+            <div class="profile-avatar-pill" data-avatar="🦁">🦁</div>
+            <div class="profile-avatar-pill" data-avatar="🐺">🐺</div>
+            <div class="profile-avatar-pill" data-avatar="🌸">🌸</div>
+            <div class="profile-avatar-pill" data-avatar="🌊">🌊</div>
+          </div>
+        </div>
+
+        <!-- Preferred Music Languages -->
+        <div class="profile-config-section">
+          <div class="profile-section-header">
+            <span class="profile-section-label">Music Languages</span>
+            <span class="profile-section-badge">Tailors Mood Hub & Radar</span>
+          </div>
+          <div class="language-chips-grid" id="profile-languages-grid">
+            <div class="lang-chip active" data-lang="English">🇬🇧 English</div>
+            <div class="lang-chip active" data-lang="Telugu">🇮🇳 Telugu</div>
+            <div class="lang-chip active" data-lang="Hindi">🇮🇳 Hindi</div>
+            <div class="lang-chip" data-lang="Tamil">🇮🇳 Tamil</div>
+            <div class="lang-chip" data-lang="Punjabi">🇮🇳 Punjabi</div>
+            <div class="lang-chip" data-lang="Kannada">🇮🇳 Kannada</div>
+            <div class="lang-chip" data-lang="Malayalam">🇮🇳 Malayalam</div>
+            <div class="lang-chip" data-lang="Spanish">🇪🇸 Spanish</div>
+            <div class="lang-chip" data-lang="Korean">🇰🇷 Korean (K-Pop)</div>
+            <div class="lang-chip" data-lang="Japanese">🇯🇵 Japanese</div>
+            <div class="lang-chip" data-lang="French">🇫🇷 French</div>
+          </div>
+        </div>
+
+        <!-- Streaming Audio Fidelity -->
+        <div class="profile-config-section">
+          <div class="profile-section-header">
+            <span class="profile-section-label">Audio Fidelity Engine</span>
+          </div>
+          <div class="fidelity-card-grid">
+            <label class="fidelity-radio-card">
+              <input type="radio" name="audio-quality-opt" value="Master 320k" checked>
+              <div class="fidelity-card-content">
+                <div class="fidelity-title-row">
+                  <span class="fidelity-icon">🔥</span>
+                  <strong>Master Hi-Fi 320k</strong>
+                </div>
+                <span class="fidelity-desc">Ultra-low latency studio audio proxy with deep dynamic range</span>
+              </div>
+            </label>
+            <label class="fidelity-radio-card">
+              <input type="radio" name="audio-quality-opt" value="FLAC Studio">
+              <div class="fidelity-card-content">
+                <div class="fidelity-title-row">
+                  <span class="fidelity-icon">🎧</span>
+                  <strong>8D Spatial Master</strong>
+                </div>
+                <span class="fidelity-desc">Binaural 360° surround simulation with spherical acoustic panner</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Listener Analytics Stats Row -->
+        <div class="profile-stats-dashboard" id="profile-stats-summary">
+          <div class="stat-dashboard-card">
+            <span class="stat-icon">🎵</span>
+            <div class="stat-val" id="profile-stat-plays">0</div>
+            <div class="stat-lbl">Total Tracks Played</div>
+          </div>
+          <div class="stat-dashboard-card">
+            <span class="stat-icon">❤️</span>
+            <div class="stat-val" id="profile-stat-likes">0</div>
+            <div class="stat-lbl">Liked Songs</div>
+          </div>
+          <div class="stat-dashboard-card">
+            <span class="stat-icon">📁</span>
+            <div class="stat-val" id="profile-stat-playlists">0</div>
+            <div class="stat-lbl">Custom Playlists</div>
+          </div>
+        </div>
+
+        <!-- Data Portability & Backup Section -->
+        <div class="profile-section-block" style="margin-top: 18px; border-top: 1px solid var(--border-glass); padding-top: 16px;">
+          <div class="profile-section-header">
+            <span class="profile-section-icon">💾</span>
+            <span class="profile-section-label">Device Data Portability (No Account Needed)</span>
+          </div>
+          <p style="font-size: 12px; color: var(--silver-muted); margin-bottom: 12px; line-height: 1.5;">
+            Your likes, custom playlists, and history are preserved locally on this device. Download a JSON backup to transfer your entire collection to your mobile phone or another browser!
+          </p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="btn-luxury btn-gold-action" id="profile-export-backup-btn" style="flex: 1; padding: 9px 14px; font-size: 12px;">
+              <span>📥</span>
+              <span>Export Backup (.JSON)</span>
+            </button>
+            <button type="button" class="btn-luxury" id="profile-import-backup-btn" style="flex: 1; padding: 9px 14px; font-size: 12px;">
+              <span>📤</span>
+              <span>Import Backup</span>
+            </button>
+            <input type="file" id="profile-import-file-input" accept=".json,application/json" style="display: none;">
+          </div>
+        </div>
+
+        <button class="btn-luxury btn-gold-action profile-save-action-btn" id="profile-save-btn" style="margin-top: 18px;">
+          <span>✨</span>
+          <span>Save Profile & Preferences</span>
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 10-BAND EQUALIZER & 8D MODAL ==================== -->
+  <div class="modal-overlay" id="equalizer-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🎛️</span>
+          <span>10-Band Studio Equalizer & 8D Spatial Audio</span>
+        </div>
+        <button class="modal-close-btn" id="eq-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- Preset Chips -->
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--silver-muted); margin-bottom: 10px;">
+          Master Acoustic Presets
+        </div>
+        <div class="mood-chips-container" style="margin-bottom: 20px;">
+          <div class="mood-chip eq-preset-chip active" data-preset="flat">Flat Studio</div>
+          <div class="mood-chip eq-preset-chip" data-preset="bass_boost">🔥 Bass Boost</div>
+          <div class="mood-chip eq-preset-chip" data-preset="vocal">🎙️ Vocal Clarity</div>
+          <div class="mood-chip eq-preset-chip" data-preset="electronic">⚡ EDM / Club</div>
+          <div class="mood-chip eq-preset-chip" data-preset="rock">🎸 Rock</div>
+          <div class="mood-chip eq-preset-chip" data-preset="acoustic">🎻 Acoustic</div>
+          <div class="mood-chip eq-preset-chip" data-preset="lofi_chill">☕ Lo-Fi Zen</div>
+        </div>
+
+        <!-- 10 Parametric Sliders -->
+        <div class="eq-sliders-grid" id="eq-sliders-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CREATE PLAYLIST MODAL ==================== -->
+  <div class="modal-overlay" id="create-playlist-modal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>📁</span>
+          <span>Create Custom Playlist</span>
+        </div>
+        <button class="modal-close-btn" id="create-playlist-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="sync-field-group">
+          <label class="sync-field-label">Playlist Name</label>
+          <input type="text" id="new-playlist-name-input" class="sync-field-input" placeholder="e.g. Late Night Vibes 🌌" autocomplete="off">
+        </div>
+        <div class="sync-field-group" style="margin-top: 14px;">
+          <label class="sync-field-label">Description (Optional)</label>
+          <input type="text" id="new-playlist-desc-input" class="sync-field-input" placeholder="e.g. Deep acoustic cuts for long drives" autocomplete="off">
+        </div>
+        <button class="btn-luxury btn-gold-action" id="create-playlist-submit-btn" style="width: 100%; margin-top: 18px;">
+          <span>✨</span>
+          <span>Create Playlist</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ADD TO PLAYLIST MODAL ==================== -->
+  <div class="modal-overlay" id="add-to-playlist-modal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>➕</span>
+          <span>Add to Playlist</span>
+        </div>
+        <button class="modal-close-btn" id="add-to-playlist-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="add-to-playlist-list" class="playlist-picker-list" style="max-height: 280px; overflow-y: auto; margin-bottom: 14px;"></div>
+        <button class="btn-luxury btn-gold-action" id="modal-quick-create-playlist-btn" style="width: 100%;">
+          <span>➕</span>
+          <span>Create New Playlist</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SLIDE-OVER PANELS ==================== -->
+  <!-- Synced Lyrics Slide Panel -->
+  <div class="slide-panel" id="lyrics-slide-panel">
+    <div class="slide-panel-header">
+      <div style="font-size: 15px; font-weight: 700;">🎙️ Synchronized Lyrics</div>
+      <button class="modal-close-btn" id="lyrics-close-btn">✕</button>
+    </div>
+    <div class="slide-panel-body" id="lyrics-panel-content"></div>
+  </div>
+
+  <!-- Queue Slide Panel -->
+  <div class="slide-panel" id="queue-slide-panel">
+    <div class="slide-panel-header">
+      <div style="font-size: 15px; font-weight: 700;">📑 Playback Queue</div>
+      <button class="modal-close-btn" id="queue-close-btn">✕</button>
+    </div>
+    <div class="slide-panel-body" id="queue-panel-list"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="/static/js/storage.js"></script>
+  <script src="/static/js/audio-engine.js"></script>
+  <script src="/static/js/sync-client.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

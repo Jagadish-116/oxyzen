@@ -179,9 +179,11 @@ def _evict_expired_cache() -> None:
         for k in sorted_keys[:80]:
             stream_cache.pop(k, None)
 
-def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
+def build_ytdl_opts(client_tier: str = "primary", with_cookies: bool = False) -> Dict[str, Any]:
     """
     Builds optimized yt-dlp options with dynamic cookie, proxy, PO token, and client emulation.
+    NOTE: Mobile clients ('ios', 'android') bypass datacenter bot challenges and error 152, but yt-dlp
+    skips them if cookiefile is passed. For stream extraction, with_cookies defaults to False.
     """
     cookie_file = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
     proxy = os.environ.get("YTDL_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
@@ -191,8 +193,6 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
     # Select client priority based on fallback tier
     if client_tier == "mobile":
         clients = ['ios', 'android']
-    elif client_tier == "embedded":
-        clients = ['tv_embedded', 'web_embedded', 'ios', 'android', 'mweb']
     else:
         clients = ['ios', 'android', 'mweb']
 
@@ -228,17 +228,15 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
         }
     }
 
-    if cookie_file:
+    if with_cookies and cookie_file:
         opts['cookiefile'] = cookie_file
-    elif ACTIVE_COOKIE_PATH:
-        opts['cookiefile'] = ACTIVE_COOKIE_PATH
 
     if proxy:
         opts['proxy'] = proxy
 
     return opts
 
-YTDL_OPTS = build_ytdl_opts("primary")
+YTDL_OPTS = build_ytdl_opts("primary", with_cookies=False)
 
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
@@ -626,9 +624,9 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
     stream_url = None
     headers = {}
 
-    # Attempt 1: Primary YTDL with multi-client mobile bypass
+    # Attempt 1: Primary YTDL with multi-client mobile bypass (zero cookies so ios/android are never skipped)
     try:
-        primary_opts = build_ytdl_opts("primary")
+        primary_opts = build_ytdl_opts("primary", with_cookies=False)
         with yt_dlp.YoutubeDL(primary_opts) as ydl:
             extracted_info = ydl.extract_info(url, download=False)
             if extracted_info:
@@ -637,24 +635,17 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
     except (DownloadError, ExtractorError, Exception) as e1:
         logger.warning(f"Primary yt-dlp extraction failed for {video_id}: {e1}")
 
-    # Attempt 2: Fallback with tv_embedded & web_embedded
+    # Attempt 2: Fallback with cookies (for auth/age-gated tracks)
     if not stream_url:
         try:
-            fallback_opts = build_ytdl_opts("embedded")
-            fallback_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['ios', 'android', 'mweb', 'tv_embedded', 'web_embedded'],
-                    'player_skip': ['webpage', 'configs']
-                }
-            }
             cookie_path = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
             if cookie_path:
-                fallback_opts['cookiefile'] = cookie_path
-            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                extracted_info = ydl.extract_info(url, download=False)
-                if extracted_info:
-                    stream_url = _extract_best_stream_url(extracted_info)
-                    headers = extracted_info.get("http_headers", {})
+                fallback_opts = build_ytdl_opts("primary", with_cookies=True)
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    extracted_info = ydl.extract_info(url, download=False)
+                    if extracted_info:
+                        stream_url = _extract_best_stream_url(extracted_info)
+                        headers = extracted_info.get("http_headers", {})
         except (DownloadError, ExtractorError, Exception) as e2:
             logger.warning(f"Secondary yt-dlp fallback failed for {video_id}: {e2}")
 

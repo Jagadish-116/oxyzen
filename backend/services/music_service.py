@@ -183,7 +183,7 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
     """
     Builds optimized yt-dlp options with dynamic cookie, proxy, PO token, and client emulation.
     """
-    cookie_file = get_writable_cookie_path()
+    cookie_file = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
     proxy = os.environ.get("YTDL_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
     po_token = os.environ.get("YTDL_PO_TOKEN") or os.environ.get("PO_TOKEN")
     visitor_data = os.environ.get("YTDL_VISITOR_DATA") or os.environ.get("VISITOR_DATA")
@@ -192,13 +192,13 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
     if client_tier == "mobile":
         clients = ['android', 'ios']
     elif client_tier == "embedded":
-        clients = ['tv_embedded', 'web_embedded', 'mweb']
+        clients = ['tv_embedded', 'web_embedded', 'android', 'ios']
     else:
-        clients = ['android', 'ios', 'tv_embedded', 'web', 'mweb']
+        clients = ['android', 'ios', 'web_safari']
 
     yt_extractor_args: Dict[str, Any] = {
         'player_client': clients,
-        'player_skip': ['webpage', 'configs', 'js'],
+        'player_skip': ['webpage', 'configs'],
     }
 
     if po_token:
@@ -230,6 +230,8 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
 
     if cookie_file:
         opts['cookiefile'] = cookie_file
+    elif ACTIVE_COOKIE_PATH:
+        opts['cookiefile'] = ACTIVE_COOKIE_PATH
 
     if proxy:
         opts['proxy'] = proxy
@@ -338,14 +340,26 @@ def search_via_ytdl(query: str, limit: int = 30) -> List[Dict[str, Any]]:
     
     tracks: List[Dict[str, Any]] = []
     seen_ids = set()
-    search_opts = {
+    cookie_file = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
+    search_opts: Dict[str, Any] = {
         **YTDL_OPTS,
         'extract_flat': True,
         'skip_download': True,
         'quiet': True,
         'no_warnings': True,
         'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web_safari'],
+                'player_skip': ['webpage', 'configs'],
+            }
+        },
     }
+    if cookie_file:
+        search_opts['cookiefile'] = cookie_file
+    elif ACTIVE_COOKIE_PATH:
+        search_opts['cookiefile'] = ACTIVE_COOKIE_PATH
+
     try:
         with yt_dlp.YoutubeDL(search_opts) as ydl:
             info = ydl.extract_info(f"ytsearch{max(limit, 25)}:{query.strip()}", download=False)
@@ -588,7 +602,8 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
 
     # Attempt 1: Primary YTDL with multi-client mobile bypass
     try:
-        with yt_dlp.YoutubeDL(YTDL_OPTS) as ydl:
+        primary_opts = build_ytdl_opts("primary")
+        with yt_dlp.YoutubeDL(primary_opts) as ydl:
             extracted_info = ydl.extract_info(url, download=False)
             if extracted_info:
                 stream_url = extracted_info.get("url")
@@ -606,12 +621,16 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
     # Attempt 2: Fallback with tv_embedded & web_embedded
     if not stream_url:
         try:
-            fallback_opts = dict(YTDL_OPTS)
+            fallback_opts = build_ytdl_opts("embedded")
             fallback_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'web_embedded', 'mweb']
+                    'player_client': ['android', 'ios', 'web_safari', 'tv_embedded', 'web_embedded'],
+                    'player_skip': ['webpage', 'configs']
                 }
             }
+            cookie_path = get_writable_cookie_path() or ACTIVE_COOKIE_PATH
+            if cookie_path:
+                fallback_opts['cookiefile'] = cookie_path
             with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                 extracted_info = ydl.extract_info(url, download=False)
                 if extracted_info:

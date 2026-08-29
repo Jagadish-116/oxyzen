@@ -1,7 +1,8 @@
 import pytest
 from backend.services.music_service import (
     format_duration, parse_duration_str, clean_thumbnail, clean_track_item,
-    get_search_suggestions, search_music, get_explore_feed, get_vibe_recommendations
+    get_search_suggestions, search_music, get_explore_feed, get_vibe_recommendations,
+    _extract_best_stream_url
 )
 
 def test_format_duration():
@@ -71,3 +72,22 @@ def test_explore_feed():
         assert "title" in sec
         assert "tracks" in sec
         assert isinstance(sec["tracks"], list)
+
+def test_extract_best_stream_url():
+    # Direct URL test
+    assert _extract_best_stream_url({"url": "https://example.com/stream.m4a"}) == "https://example.com/stream.m4a"
+    
+    # Formats tree test with audio formats
+    info_with_formats = {
+        "formats": [
+            {"format_id": "1", "url": "https://example.com/audio_low.m4a", "vcodec": "none", "acodec": "mp4a", "abr": 64},
+            {"format_id": "2", "url": "https://example.com/audio_high.m4a", "vcodec": "none", "acodec": "mp4a", "abr": 160},
+            {"format_id": "3", "url": "https://example.com/video.mp4", "vcodec": "avc1", "acodec": "none", "tbr": 500}
+        ]
+    }
+    assert _extract_best_stream_url(info_with_formats) == "https://example.com/audio_high.m4a"
+
+    # Empty or None info
+    assert _extract_best_stream_url(None) is None
+    assert _extract_best_stream_url({}) is None
+

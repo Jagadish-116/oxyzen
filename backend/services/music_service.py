@@ -190,11 +190,11 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
 
     # Select client priority based on fallback tier
     if client_tier == "mobile":
-        clients = ['android', 'ios']
+        clients = ['ios', 'android']
     elif client_tier == "embedded":
-        clients = ['tv_embedded', 'web_embedded', 'android', 'ios']
+        clients = ['tv_embedded', 'web_embedded', 'ios', 'android', 'mweb']
     else:
-        clients = ['android', 'ios', 'web_safari']
+        clients = ['ios', 'android', 'mweb']
 
     yt_extractor_args: Dict[str, Any] = {
         'player_client': clients,
@@ -207,7 +207,7 @@ def build_ytdl_opts(client_tier: str = "primary") -> Dict[str, Any]:
         yt_extractor_args['visitor_data'] = [visitor_data]
 
     opts: Dict[str, Any] = {
-        'format': 'bestaudio/best',
+        'format': 'ba/b[ext=m4a]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
@@ -350,7 +350,7 @@ def search_via_ytdl(query: str, limit: int = 30) -> List[Dict[str, Any]]:
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web_safari'],
+                'player_client': ['ios', 'android', 'mweb'],
                 'player_skip': ['webpage', 'configs'],
             }
         },
@@ -588,6 +588,32 @@ def _resolve_via_invidious(video_id: str) -> Optional[Dict[str, Any]]:
 
     return None
 
+def _extract_best_stream_url(info_dict: Optional[Dict[str, Any]]) -> Optional[str]:
+    """
+    Inspects extracted yt-dlp info dictionary for direct URL or best available audio format.
+    """
+    if not info_dict:
+        return None
+    # Direct URL from flat or single stream
+    if "url" in info_dict and not info_dict.get("formats"):
+        return info_dict["url"]
+    
+    formats = info_dict.get("formats", [])
+    # Filter for audio-capable formats
+    audio_formats = [
+        f for f in formats 
+        if (f.get("vcodec") == "none" or f.get("acodec") != "none") and f.get("url")
+    ]
+    if not audio_formats:
+        audio_formats = [f for f in formats if f.get("url")]
+        
+    if audio_formats:
+        # Pick format with highest audio bitrate (abr / tbr)
+        audio_formats.sort(key=lambda x: (x.get("abr") or x.get("tbr") or 0), reverse=True)
+        return audio_formats[0]["url"]
+    
+    return None
+
 def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str, Any]:
     now = time.time()
     if not force_refresh and video_id in stream_cache:
@@ -606,14 +632,7 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
         with yt_dlp.YoutubeDL(primary_opts) as ydl:
             extracted_info = ydl.extract_info(url, download=False)
             if extracted_info:
-                stream_url = extracted_info.get("url")
-                if not stream_url and "formats" in extracted_info:
-                    audio_formats = [f for f in extracted_info["formats"] if f.get("acodec") != "none"]
-                    if audio_formats:
-                        best = max(audio_formats, key=lambda f: f.get("abr", 0) or f.get("tbr", 0))
-                        stream_url = best.get("url")
-                    elif extracted_info.get("formats"):
-                        stream_url = extracted_info["formats"][-1].get("url")
+                stream_url = _extract_best_stream_url(extracted_info)
                 headers = extracted_info.get("http_headers", {})
     except (DownloadError, ExtractorError, Exception) as e1:
         logger.warning(f"Primary yt-dlp extraction failed for {video_id}: {e1}")
@@ -624,7 +643,7 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
             fallback_opts = build_ytdl_opts("embedded")
             fallback_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web_safari', 'tv_embedded', 'web_embedded'],
+                    'player_client': ['ios', 'android', 'mweb', 'tv_embedded', 'web_embedded'],
                     'player_skip': ['webpage', 'configs']
                 }
             }
@@ -634,11 +653,7 @@ def resolve_stream_info(video_id: str, force_refresh: bool = False) -> Dict[str,
             with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                 extracted_info = ydl.extract_info(url, download=False)
                 if extracted_info:
-                    stream_url = extracted_info.get("url")
-                    if not stream_url and "formats" in extracted_info:
-                        audio_formats = [f for f in extracted_info["formats"] if f.get("acodec") != "none"]
-                        if audio_formats:
-                            stream_url = max(audio_formats, key=lambda f: f.get("abr", 0) or f.get("tbr", 0)).get("url")
+                    stream_url = _extract_best_stream_url(extracted_info)
                     headers = extracted_info.get("http_headers", {})
         except (DownloadError, ExtractorError, Exception) as e2:
             logger.warning(f"Secondary yt-dlp fallback failed for {video_id}: {e2}")

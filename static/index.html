@@ -6,6 +6,12 @@
   <title>OXYZEN - Pure Unchained High-Fidelity Music</title>
   <meta name="description" content="Oxyzen is the ultimate ad-free luxury music streaming platform with real-time audio visualizers, 10-band equalizer, 8D spatial audio, synced lyrics, multilingual mood hubs, and SoundSync live rooms.">
   <link rel="icon" type="image/png" href="/static/assets/logo.png">
+  
+  <!-- Premium Google Fonts: Outfit & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -79,10 +85,14 @@
           <span>SoundSync Space</span>
           <span class="nav-badge" id="sync-sidebar-badge" style="background: rgba(34, 211, 238, 0.2); color: var(--accent-cyan);">LIVE</span>
         </div>
+        <div class="nav-item" data-view="profile">
+          <span class="nav-icon">👑</span>
+          <span>Audiophile Profile</span>
+        </div>
       </div>
 
       <!-- User Profile Sidebar Card -->
-      <div class="sidebar-user-card" id="sidebar-user-profile-btn">
+      <div class="sidebar-user-card" id="sidebar-user-profile-btn" onclick="window.oxyzen && window.oxyzen.switchView('profile')">
         <div class="sidebar-user-avatar" id="sidebar-user-avatar">👑</div>
         <div class="sidebar-user-meta">
           <div class="sidebar-user-name" id="sidebar-user-name">Oxyzen Listener</div>
@@ -126,7 +136,7 @@
         <button class="btn-icon-round" id="cinema-toggle-btn" title="Ambient Cinema Mode">
           ✨
         </button>
-        <button class="topbar-profile-pill" id="topbar-profile-btn" title="User Profile & Language Preferences">
+        <button class="topbar-profile-pill" id="topbar-profile-btn" title="User Profile & Settings" onclick="window.oxyzen && window.oxyzen.switchView('profile')">
           <span id="topbar-avatar">👑</span>
           <span id="topbar-username">Profile</span>
         </button>
@@ -230,7 +240,7 @@
         <div id="playlist-detail-container"></div>
       </section>
 
-      <!-- 7. SOUNDSYNC DEDICATED SPACE -->
+      <!-- 9. SOUNDSYNC DEDICATED SPACE -->
       <section id="view-sync-space" class="page-view">
         
         <!-- Lobby View (When not inside a room) -->
@@ -537,6 +547,176 @@
 
       </section>
 
+      <!-- 10. ALL-NEW DEDICATED LUXURY AUDIOPHILE PROFILE VIEW -->
+      <section id="view-profile" class="page-view">
+        <!-- VIP Hero Master Banner -->
+        <div class="profile-page-hero">
+          <div class="profile-hero-glow"></div>
+          <div class="profile-page-header-row">
+            <div class="profile-page-avatar-wrap">
+              <div class="profile-page-avatar" id="page-user-avatar">👑</div>
+              <div class="profile-avatar-aura"></div>
+            </div>
+            <div class="profile-page-info">
+              <div class="profile-badge-row">
+                <span class="profile-vip-pill">✦ OXYZEN VIP AUDIOPHILE</span>
+                <span class="profile-tier-pill">PRO MASTER 320K</span>
+              </div>
+              <h1 class="profile-page-name" id="page-user-name">Oxyzen Listener</h1>
+              <p class="profile-page-bio" id="page-user-bio">Acoustic purist enjoying lossless spatial soundscapes with zero ads.</p>
+              <div class="profile-joined-date">Member since 2026 • Real-time Cloud Sync Active</div>
+            </div>
+            <div class="profile-hero-actions">
+              <button class="btn-luxury btn-gold-action" id="page-customize-persona-btn">
+                <span>✨</span>
+                <span>Customize Persona</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Listening Intelligence Stats Grid -->
+        <div class="profile-stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(245, 197, 66, 0.15); color: var(--gold-accent);">🎵</div>
+            <div class="stat-card-content">
+              <div class="stat-card-number" id="page-stat-plays">0</div>
+              <div class="stat-card-label">Tracks Streamed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(244, 63, 94, 0.15); color: #F43F5E;">❤️</div>
+            <div class="stat-card-content">
+              <div class="stat-card-number" id="page-stat-likes">0</div>
+              <div class="stat-card-label">Liked Masterpieces</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan);">📁</div>
+            <div class="stat-card-content">
+              <div class="stat-card-number" id="page-stat-playlists">0</div>
+              <div class="stat-card-label">Curated Playlists</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(168, 85, 247, 0.15); color: #A855F7;">🎧</div>
+            <div class="stat-card-content">
+              <div class="stat-card-number" id="page-stat-syncs">Live</div>
+              <div class="stat-card-label">SoundSync Status</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Artists & Genres Matrix -->
+        <div class="profile-card-section" style="margin-top: 24px;">
+          <div class="profile-section-heading">
+            <span class="profile-heading-icon">🌟</span>
+            <span class="profile-heading-title">Top Listened Artists & Acoustic Taste</span>
+          </div>
+          <div class="profile-artists-row" id="page-top-artists-row">
+            <div class="artist-pill"><span>👑</span> Arijit Singh</div>
+            <div class="artist-pill"><span>🎧</span> Anirudh Ravichander</div>
+            <div class="artist-pill"><span>⚡</span> Pritam</div>
+            <div class="artist-pill"><span>🔥</span> Imagine Dragons</div>
+            <div class="artist-pill"><span>💎</span> The Weeknd</div>
+            <div class="artist-pill"><span>🪐</span> A.R. Rahman</div>
+            <div class="artist-pill"><span>✨</span> Taylor Swift</div>
+          </div>
+        </div>
+
+        <!-- Studio Audio Preferences & Fidelity Engine -->
+        <div class="profile-card-section" style="margin-top: 24px;">
+          <div class="profile-section-heading">
+            <span class="profile-heading-icon">🎛️</span>
+            <span class="profile-heading-title">Audiophile Studio & Streaming Preferences</span>
+          </div>
+          <div class="profile-settings-grid">
+            <div class="setting-item-box">
+              <div class="setting-item-meta">
+                <strong>Audio Streaming Quality</strong>
+                <span>Direct lossless CDN bitrates with sub-ms buffering</span>
+              </div>
+              <div class="setting-selector-row" id="page-quality-selector">
+                <button class="quality-pill active" data-quality="320k">🔥 Master 320kbps</button>
+                <button class="quality-pill" data-quality="160k">⚡ High 160kbps</button>
+                <button class="quality-pill" data-quality="96k">💾 Saver 96kbps</button>
+              </div>
+            </div>
+
+            <div class="setting-item-box">
+              <div class="setting-item-meta">
+                <strong>8D Binaural Spatial Audio</strong>
+                <span>Spherical 360° sound panner rotation engine</span>
+              </div>
+              <label class="switch-luxury">
+                <input type="checkbox" id="page-spatial-toggle">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="setting-item-box">
+              <div class="setting-item-meta">
+                <strong>Ambient Dynamic Lighting Theme</strong>
+                <span>Choose neon aura glow accents for player & background</span>
+              </div>
+              <div class="theme-accent-picker" id="page-theme-accents">
+                <button class="theme-dot active" data-theme="gold" style="background: #F5C542; box-shadow: 0 0 12px #F5C542;" title="Royal Gold"></button>
+                <button class="theme-dot" data-theme="cyan" style="background: #22D3EE; box-shadow: 0 0 12px #22D3EE;" title="Cyber Cyan"></button>
+                <button class="theme-dot" data-theme="purple" style="background: #A855F7; box-shadow: 0 0 12px #A855F7;" title="Neon Purple"></button>
+                <button class="theme-dot" data-theme="emerald" style="background: #10B981; box-shadow: 0 0 12px #10B981;" title="Emerald Green"></button>
+                <button class="theme-dot" data-theme="rose" style="background: #F43F5E; box-shadow: 0 0 12px #F43F5E;" title="Electric Rose"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Music Languages Radar -->
+        <div class="profile-card-section" style="margin-top: 24px;">
+          <div class="profile-section-heading">
+            <span class="profile-heading-icon">🌐</span>
+            <span class="profile-heading-title">Multilingual Music Radar (Selected for Explore & Mood Hubs)</span>
+          </div>
+          <div class="language-chips-grid" id="page-languages-grid" style="margin-top: 12px;">
+            <div class="lang-chip active" data-lang="English">🇬🇧 English</div>
+            <div class="lang-chip active" data-lang="Telugu">🇮🇳 Telugu</div>
+            <div class="lang-chip active" data-lang="Hindi">🇮🇳 Hindi</div>
+            <div class="lang-chip" data-lang="Tamil">🇮🇳 Tamil</div>
+            <div class="lang-chip" data-lang="Punjabi">🇮🇳 Punjabi</div>
+            <div class="lang-chip" data-lang="Kannada">🇮🇳 Kannada</div>
+            <div class="lang-chip" data-lang="Malayalam">🇮🇳 Malayalam</div>
+            <div class="lang-chip" data-lang="Spanish">🇪🇸 Spanish</div>
+            <div class="lang-chip" data-lang="Korean">🇰🇷 Korean (K-Pop)</div>
+            <div class="lang-chip" data-lang="Japanese">🇯🇵 Japanese</div>
+            <div class="lang-chip" data-lang="French">🇫🇷 French</div>
+          </div>
+        </div>
+
+        <!-- Data Portability & Storage Management -->
+        <div class="profile-card-section" style="margin-top: 24px; margin-bottom: 40px;">
+          <div class="profile-section-heading">
+            <span class="profile-heading-icon">💾</span>
+            <span class="profile-heading-title">Data Backup, Transfer & Device Portability</span>
+          </div>
+          <p style="font-size: 13px; color: var(--silver-muted); margin-top: 6px; line-height: 1.6;">
+            Your liked songs, playlists, and history are stored securely. Export your library to a JSON file to transfer between devices anytime with zero data loss.
+          </p>
+          <div style="display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
+            <button class="btn-luxury btn-gold-action" id="page-export-backup-btn">
+              <span>📥</span>
+              <span>Export Library Backup (.JSON)</span>
+            </button>
+            <button class="btn-luxury" id="page-import-backup-btn">
+              <span>📤</span>
+              <span>Import Library Backup</span>
+            </button>
+            <button class="btn-luxury btn-danger-action" id="page-clear-history-btn">
+              <span>🗑️</span>
+              <span>Clear History</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <!-- ==================== PLAYER DOCK ==================== -->
@@ -545,7 +725,7 @@
       <canvas id="dock-visualizer-canvas" width="800" height="88"></canvas>
 
       <!-- Left: Track Details -->
-      <div class="player-left">
+      <div class="player-left" id="player-left-touch-target">
         <div class="player-art-wrap">
           <img src="/static/assets/logo.png" id="player-thumb" class="player-art-img" alt="Track Art">
           <div class="player-art-badge">HD</div>
@@ -601,17 +781,17 @@
         <span class="mobile-nav-icon">🔍</span>
         <span class="mobile-nav-label">Search</span>
       </div>
-      <div class="mobile-nav-tab" data-view="moods">
-        <span class="mobile-nav-icon">🎭</span>
-        <span class="mobile-nav-label">Moods</span>
-      </div>
-      <div class="mobile-nav-tab" data-view="vibe">
-        <span class="mobile-nav-icon">📡</span>
-        <span class="mobile-nav-label">Radar</span>
+      <div class="mobile-nav-tab" data-view="sync-space">
+        <span class="mobile-nav-icon">🎧</span>
+        <span class="mobile-nav-label">SoundSync</span>
       </div>
       <div class="mobile-nav-tab" data-view="liked">
         <span class="mobile-nav-icon">❤️</span>
         <span class="mobile-nav-label">Library</span>
+      </div>
+      <div class="mobile-nav-tab" data-view="profile">
+        <span class="mobile-nav-icon">👑</span>
+        <span class="mobile-nav-label">Profile</span>
       </div>
     </nav>
 
@@ -747,13 +927,13 @@
     <canvas id="cinema-visualizer-canvas" width="1400" height="120"></canvas>
   </div>
 
-  <!-- ==================== USER PROFILE & LANGUAGE PREFERENCES MODAL ==================== -->
+  <!-- ==================== USER PROFILE & PERSONA CUSTOMIZATION MODAL ==================== -->
   <div class="modal-overlay" id="user-profile-modal">
     <div class="modal-dialog profile-modal-dialog">
       <div class="modal-header profile-modal-header">
         <div class="modal-title">
           <span class="profile-header-sparkle">✨</span>
-          <span>Listener Sound Profile</span>
+          <span>Customize Listener Persona</span>
         </div>
         <button class="modal-close-btn" id="profile-close-btn">✕</button>
       </div>
@@ -816,76 +996,6 @@
             <div class="lang-chip" data-lang="Korean">🇰🇷 Korean (K-Pop)</div>
             <div class="lang-chip" data-lang="Japanese">🇯🇵 Japanese</div>
             <div class="lang-chip" data-lang="French">🇫🇷 French</div>
-          </div>
-        </div>
-
-        <!-- Streaming Audio Fidelity -->
-        <div class="profile-config-section">
-          <div class="profile-section-header">
-            <span class="profile-section-label">Audio Fidelity Engine</span>
-          </div>
-          <div class="fidelity-card-grid">
-            <label class="fidelity-radio-card">
-              <input type="radio" name="audio-quality-opt" value="Master 320k" checked>
-              <div class="fidelity-card-content">
-                <div class="fidelity-title-row">
-                  <span class="fidelity-icon">🔥</span>
-                  <strong>Master Hi-Fi 320k</strong>
-                </div>
-                <span class="fidelity-desc">Ultra-low latency studio audio proxy with deep dynamic range</span>
-              </div>
-            </label>
-            <label class="fidelity-radio-card">
-              <input type="radio" name="audio-quality-opt" value="FLAC Studio">
-              <div class="fidelity-card-content">
-                <div class="fidelity-title-row">
-                  <span class="fidelity-icon">🎧</span>
-                  <strong>8D Spatial Master</strong>
-                </div>
-                <span class="fidelity-desc">Binaural 360° surround simulation with spherical acoustic panner</span>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <!-- Listener Analytics Stats Row -->
-        <div class="profile-stats-dashboard" id="profile-stats-summary">
-          <div class="stat-dashboard-card">
-            <span class="stat-icon">🎵</span>
-            <div class="stat-val" id="profile-stat-plays">0</div>
-            <div class="stat-lbl">Total Tracks Played</div>
-          </div>
-          <div class="stat-dashboard-card">
-            <span class="stat-icon">❤️</span>
-            <div class="stat-val" id="profile-stat-likes">0</div>
-            <div class="stat-lbl">Liked Songs</div>
-          </div>
-          <div class="stat-dashboard-card">
-            <span class="stat-icon">📁</span>
-            <div class="stat-val" id="profile-stat-playlists">0</div>
-            <div class="stat-lbl">Custom Playlists</div>
-          </div>
-        </div>
-
-        <!-- Data Portability & Backup Section -->
-        <div class="profile-section-block" style="margin-top: 18px; border-top: 1px solid var(--border-glass); padding-top: 16px;">
-          <div class="profile-section-header">
-            <span class="profile-section-icon">💾</span>
-            <span class="profile-section-label">Device Data Portability (No Account Needed)</span>
-          </div>
-          <p style="font-size: 12px; color: var(--silver-muted); margin-bottom: 12px; line-height: 1.5;">
-            Your likes, custom playlists, and history are preserved locally on this device. Download a JSON backup to transfer your entire collection to your mobile phone or another browser!
-          </p>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button type="button" class="btn-luxury btn-gold-action" id="profile-export-backup-btn" style="flex: 1; padding: 9px 14px; font-size: 12px;">
-              <span>📥</span>
-              <span>Export Backup (.JSON)</span>
-            </button>
-            <button type="button" class="btn-luxury" id="profile-import-backup-btn" style="flex: 1; padding: 9px 14px; font-size: 12px;">
-              <span>📤</span>
-              <span>Import Backup</span>
-            </button>
-            <input type="file" id="profile-import-file-input" accept=".json,application/json" style="display: none;">
           </div>
         </div>
 

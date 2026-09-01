@@ -818,6 +818,8 @@ class OxyzenApp {
       this.loadVibeStationView();
     } else if (viewName === "sync-space") {
       this.renderSoundSyncSpace();
+    } else if (viewName === "profile") {
+      this.loadProfileView();
     }
   }
 
@@ -1081,6 +1083,164 @@ class OxyzenApp {
         }
       }
     } catch (e) {}
+  }
+
+  loadProfileView() {
+    const avatar = this.userProfile.avatar || "👑";
+    const name = this.userProfile.name || "Oxyzen Listener";
+    const langs = this.userProfile.languages || ["English", "Telugu", "Hindi"];
+
+    // Update Profile Page Hero Elements
+    const pageAvatar = document.getElementById("page-user-avatar");
+    const pageName = document.getElementById("page-user-name");
+    if (pageAvatar) pageAvatar.innerText = avatar;
+    if (pageName) pageName.innerText = name;
+
+    // Update Stats on Profile Page
+    const history = this.storage.getHistory(100);
+    const likes = this.storage.getLikedTracks();
+    const pls = this.storage.getPlaylists();
+
+    const pageStatPlays = document.getElementById("page-stat-plays");
+    const pageStatLikes = document.getElementById("page-stat-likes");
+    const pageStatPlaylists = document.getElementById("page-stat-playlists");
+    const pageStatSyncs = document.getElementById("page-stat-syncs");
+
+    if (pageStatPlays) pageStatPlays.innerText = history.length;
+    if (pageStatLikes) pageStatLikes.innerText = likes.length;
+    if (pageStatPlaylists) pageStatPlaylists.innerText = pls.length;
+    if (pageStatSyncs) pageStatSyncs.innerText = this.sync.connected ? `Room: ${this.sync.roomCode}` : "Idle";
+
+    // Customize Persona button
+    const customizeBtn = document.getElementById("page-customize-persona-btn");
+    if (customizeBtn) {
+      customizeBtn.onclick = () => {
+        if (this.profileModal) this.profileModal.classList.add("active");
+        this.fetchProfileStats();
+      };
+    }
+
+    // Top Artists calculation from history
+    const artistCounts = {};
+    history.forEach(t => {
+      if (t.artist) {
+        const primary = t.artist.split(",")[0].trim();
+        artistCounts[primary] = (artistCounts[primary] || 0) + 1;
+      }
+    });
+
+    const topArtistsRow = document.getElementById("page-top-artists-row");
+    if (topArtistsRow) {
+      const sortedArtists = Object.keys(artistCounts).sort((a, b) => artistCounts[b] - artistCounts[a]);
+      if (sortedArtists.length > 0) {
+        topArtistsRow.innerHTML = sortedArtists.slice(0, 8).map(art => `
+          <div class="artist-pill" data-artist="${this.escapeHTML(art)}">
+            <span>🎧</span>
+            <span>${this.escapeHTML(art)}</span>
+            <span style="font-size: 10px; opacity: 0.6; margin-left: 4px;">(${artistCounts[art]})</span>
+          </div>
+        `).join("");
+
+        topArtistsRow.querySelectorAll(".artist-pill").forEach(pill => {
+          pill.addEventListener("click", () => {
+            const art = pill.dataset.artist;
+            if (art && this.searchInput) {
+              this.searchInput.value = art;
+              this.switchView("search");
+              this.performSearch(art);
+            }
+          });
+        });
+      }
+    }
+
+    // Quality Selector
+    const qualitySelector = document.getElementById("page-quality-selector");
+    if (qualitySelector) {
+      qualitySelector.querySelectorAll(".quality-pill").forEach(pill => {
+        pill.classList.toggle("active", pill.dataset.quality === (this.userProfile.audio_quality || "320k"));
+        pill.onclick = () => {
+          qualitySelector.querySelectorAll(".quality-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+          this.userProfile.audio_quality = pill.dataset.quality;
+          localStorage.setItem("oxyzen_audio_quality", pill.dataset.quality);
+          this.showToast(`🔥 Audio streaming quality set to ${pill.innerText}`);
+        };
+      });
+    }
+
+    // Spatial Audio Toggle
+    const spatialToggle = document.getElementById("page-spatial-toggle");
+    if (spatialToggle) {
+      spatialToggle.checked = !!(this.audio && this.audio.is8DActive);
+      spatialToggle.onchange = () => {
+        this.toggle8DMode();
+      };
+    }
+
+    // Theme Accent Dots
+    const currentTheme = localStorage.getItem("oxyzen_theme") || "gold";
+    document.body.setAttribute("data-theme", currentTheme);
+    const themeAccents = document.getElementById("page-theme-accents");
+    if (themeAccents) {
+      themeAccents.querySelectorAll(".theme-dot").forEach(dot => {
+        dot.classList.toggle("active", dot.dataset.theme === currentTheme);
+        dot.onclick = () => {
+          themeAccents.querySelectorAll(".theme-dot").forEach(d => d.classList.remove("active"));
+          dot.classList.add("active");
+          const theme = dot.dataset.theme || "gold";
+          document.body.setAttribute("data-theme", theme);
+          localStorage.setItem("oxyzen_theme", theme);
+          this.showToast(`✨ Switched neon lighting theme to ${dot.title}`);
+        };
+      });
+    }
+
+    // Languages Grid on Page
+    const pageLangsGrid = document.getElementById("page-languages-grid");
+    if (pageLangsGrid) {
+      pageLangsGrid.querySelectorAll(".lang-chip").forEach(chip => {
+        chip.classList.toggle("active", langs.includes(chip.dataset.lang));
+        chip.onclick = () => {
+          chip.classList.toggle("active");
+          const selected = [];
+          pageLangsGrid.querySelectorAll(".lang-chip.active").forEach(c => {
+            if (c.dataset.lang) selected.push(c.dataset.lang);
+          });
+          this.userProfile.languages = selected.length > 0 ? selected : ["English", "Telugu", "Hindi"];
+          localStorage.setItem("oxyzen_user_languages", JSON.stringify(this.userProfile.languages));
+          this.updateProfileUI();
+        };
+      });
+    }
+
+    // Data Export, Import, Clear History Handlers
+    const exportBtn = document.getElementById("page-export-backup-btn");
+    if (exportBtn) {
+      exportBtn.onclick = () => {
+        this.storage.downloadBackupFile();
+        this.showToast("📥 Exported Oxyzen library backup (.json)");
+      };
+    }
+
+    const importBtn = document.getElementById("page-import-backup-btn");
+    if (importBtn) {
+      importBtn.onclick = () => {
+        const input = document.getElementById("profile-import-file-input");
+        if (input) input.click();
+      };
+    }
+
+    const clearHistoryBtn = document.getElementById("page-clear-history-btn");
+    if (clearHistoryBtn) {
+      clearHistoryBtn.onclick = () => {
+        if (confirm("Are you sure you want to clear your local listening history?")) {
+          this.storage.clearHistory();
+          this.loadProfileView();
+          this.showToast("🗑️ Listening history cleared");
+        }
+      };
+    }
   }
 
   // -------------------------------------------------------------
@@ -3090,9 +3250,16 @@ class OxyzenApp {
   toggleCinemaMode(enable = true) {
     if (!this.cinemaOverlay) return;
     this.cinemaOverlay.classList.toggle("active", enable);
-    if (enable && this.currentTrack) {
-      this.updatePlayerDockUI(this.currentTrack);
-      this.renderLyrics();
+    if (enable) {
+      if (this.currentTrack) {
+        this.updatePlayerDockUI(this.currentTrack);
+        this.renderLyrics();
+      }
+      const handleBar = document.getElementById("mobile-drawer-handle-bar");
+      if (handleBar && !handleBar._wired) {
+        handleBar._wired = true;
+        handleBar.addEventListener("click", () => this.toggleCinemaMode(false));
+      }
     }
   }
 

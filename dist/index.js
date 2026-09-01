@@ -1,19 +1,20 @@
 /**
  * OXYZEN - Pure Unchained High-Fidelity Music Engine
- * Powered by Hono & JioSaavn API
+ * Powered by Hono & JioSaavn API with Real-time SoundSync WebSockets
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { createNodeWebSocket } from '@hono/node-ws';
 import fs from 'fs';
 import path from 'path';
 import { searchSongs, getSongDetails, getSearchSuggestions, getTrending, getCharts, getExploreFeed, getMoodCategories, getMoodFeed, getVibeRecommendations } from './services/jiosaavn.js';
 import { getLyrics } from './services/lyrics.js';
 import { getDb, getLikes, getLikedIds, toggleLike, getPlaylists, createPlaylist, getPlaylistDetails, addTrackToPlaylist, removeTrackFromPlaylist, deletePlaylist, getHistory, addToHistory, clearHistory, getUserProfile, saveUserProfile, getUserListeningProfile } from './services/db.js';
 import { syncManager } from './services/sync.js';
-// Initialize SQLite database
+// Initialize storage
 getDb();
 const app = new Hono();
 // Global Middlewares
@@ -25,12 +26,261 @@ app.use('*', cors({
     exposeHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges', 'Content-Disposition'],
     maxAge: 86400
 }));
+// Initialize Hono Node WebSockets
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+// ----------------- SOUNDSYNC WEBSOCKET HANDLERS ----------------- //
+function createRoomWSHandler(defaultRoomCode) {
+    let currentRoom = null;
+    let currentUserId = '';
+    let currentUserName = '';
+    let currentUserAvatar = '🎧';
+    return {
+        onOpen(event, ws) {
+            // Socket connected
+        },
+        onMessage(event, ws) {
+            try {
+                const raw = typeof event.data === 'string' ? event.data : event.data.toString();
+                const msg = JSON.parse(raw);
+                const msgType = msg.type || msg.action;
+                if (msgType === 'PING') {
+                    ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+                    return;
+                }
+                if (msgType === 'JOIN' || msgType === 'JOIN_ROOM') {
+                    const roomCode = (msg.room_code || msg.room || defaultRoomCode || 'OXYZEN').toUpperCase().trim();
+                    currentUserId = msg.user_id || `user_${Math.floor(Date.now()) % 10000}`;
+                    currentUserName = msg.user_name || msg.username || `Listener ${currentUserId.slice(-4)}`;
+                    currentUserAvatar = msg.avatar || '🎧';
+                    currentRoom = syncManager.getOrCreateRoom(roomCode, currentUserId, currentUserName);
+                    currentRoom.addSocket(ws);
+                    const listener = currentRoom.addListener(currentUserId, currentUserName, currentUserAvatar);
+                    // Send immediate state back to joiner
+                    ws.send(JSON.stringify({
+                        type: 'ROOM_STATE',
+                        room_code: currentRoom.code,
+                        state: currentRoom.toStateDict(),
+                        you: listener
+                    }));
+                    // Notify existing room members
+                    currentRoom.broadcast({
+                        type: 'USER_JOINED',
+                        user: listener,
+                        listener_count: currentRoom.listeners.size,
+                        listeners: Array.from(currentRoom.listeners.values())
+                    }, ws);
+                    return;
+                }
+                if (!currentRoom)
+                    return;
+                if (msgType === 'SYNC_STATE' || msgType === 'PLAY_STATE') {
+                    const isPlaying = msg.is_playing ?? msg.isPlaying ?? true;
+                    const currentTime = msg.current_time ?? msg.currentTime ?? msg.position ?? 0;
+                    currentRoom.updatePlayback(msg.track || msg.song, currentTime, isPlaying);
+                    currentRoom.broadcast({
+                        type: 'PLAY_STATE',
+                        is_playing: isPlaying,
+                        current_time: currentTime,
+                        timestamp: msg.timestamp || Date.now() / 1000,
+                        triggered_by: currentUserId
+                    }, ws);
+                }
+                else if (msgType === 'PLAY_TRACK') {
+                    const track = msg.track || msg.song;
+                    const currentTime = msg.current_time || 0;
+                    currentRoom.updatePlayback(track, currentTime, true);
+                    currentRoom.broadcast({
+                        type: 'PLAY_TRACK',
+                        track: track,
+                        current_time: currentTime,
+                        triggered_by: currentUserId
+                    }, ws);
+                }
+                else if (msgType === 'SEEK') {
+                    const time = msg.time ?? msg.currentTime ?? 0;
+                    currentRoom.position = time;
+                    currentRoom.broadcast({
+                        type: 'SEEK',
+                        time: time,
+                        triggered_by: currentUserId
+                    }, ws);
+                }
+                else if (msgType === 'CHAT_MESSAGE') {
+                    const text = (msg.text || '').trim();
+                    if (text) {
+                        currentRoom.broadcast({
+                            type: 'CHAT_MESSAGE',
+                            user_id: currentUserId,
+                            user_name: currentUserName,
+                            avatar: currentUserAvatar,
+                            text: text.slice(0, 300),
+                            timestamp: Date.now() / 1000
+                        });
+                    }
+                }
+                else if (msgType === 'REACTION_PULSE') {
+                    currentRoom.broadcast({
+                        type: 'REACTION_PULSE',
+                        user_id: currentUserId,
+                        user_name: currentUserName,
+                        emoji: msg.emoji || '🔥'
+                    });
+                }
+                else if (msgType === 'REQUEST_SONG') {
+                    if (msg.track) {
+                        const req = currentRoom.addRequest(msg.track, currentUserId, currentUserName);
+                        currentRoom.broadcast({
+                            type: 'REQUEST_ADDED',
+                            request: req,
+                            requests: currentRoom.requests,
+                            requester: { id: currentUserId, name: currentUserName }
+                        });
+                    }
+                }
+                else if (msgType === 'ACCEPT_REQUEST') {
+                    const reqId = msg.request_id;
+                    const req = currentRoom.requests.find(r => r.id === reqId);
+                    if (req) {
+                        currentRoom.dismissRequest(reqId);
+                        if (msg.play_now) {
+                            currentRoom.updatePlayback(req.track, 0, true);
+                            currentRoom.broadcast({
+                                type: 'PLAY_TRACK',
+                                track: req.track,
+                                current_time: 0,
+                                triggered_by: currentUserId
+                            });
+                        }
+                        else {
+                            currentRoom.queue.push(req.track);
+                            currentRoom.broadcast({
+                                type: 'QUEUE_UPDATED',
+                                queue: currentRoom.queue,
+                                added_by: currentUserId
+                            });
+                        }
+                        currentRoom.broadcast({
+                            type: 'REQUEST_ACCEPTED',
+                            request_id: reqId,
+                            requests: currentRoom.requests
+                        });
+                    }
+                }
+                else if (msgType === 'DISMISS_REQUEST') {
+                    currentRoom.dismissRequest(msg.request_id);
+                    currentRoom.broadcast({
+                        type: 'REQUEST_DISMISSED',
+                        request_id: msg.request_id,
+                        requests: currentRoom.requests
+                    });
+                }
+                else if (msgType === 'ADD_QUEUE') {
+                    if (msg.track) {
+                        currentRoom.queue.push(msg.track);
+                        currentRoom.broadcast({
+                            type: 'QUEUE_UPDATED',
+                            queue: currentRoom.queue,
+                            added_by: currentUserId
+                        });
+                    }
+                }
+                else if (msgType === 'REMOVE_QUEUE') {
+                    if (typeof msg.index === 'number' && msg.index >= 0 && msg.index < currentRoom.queue.length) {
+                        currentRoom.queue.splice(msg.index, 1);
+                        currentRoom.broadcast({
+                            type: 'QUEUE_UPDATED',
+                            queue: currentRoom.queue,
+                            added_by: currentUserId
+                        });
+                    }
+                }
+                else if (msgType === 'PROMOTE_ADMIN') {
+                    if (currentRoom.host_id === currentUserId && msg.target_user_id) {
+                        currentRoom.admins.add(msg.target_user_id);
+                        const targetListener = currentRoom.listeners.get(msg.target_user_id);
+                        if (targetListener)
+                            targetListener.is_admin = true;
+                        currentRoom.broadcast({
+                            type: 'ADMIN_UPDATED',
+                            admins: Array.from(currentRoom.admins),
+                            listeners: Array.from(currentRoom.listeners.values()),
+                            message: `${targetListener ? targetListener.name : 'User'} is now a Co-Host Admin!`
+                        });
+                    }
+                }
+                else if (msgType === 'DEMOTE_ADMIN') {
+                    if (currentRoom.host_id === currentUserId && msg.target_user_id) {
+                        currentRoom.admins.delete(msg.target_user_id);
+                        const targetListener = currentRoom.listeners.get(msg.target_user_id);
+                        if (targetListener)
+                            targetListener.is_admin = false;
+                        currentRoom.broadcast({
+                            type: 'ADMIN_UPDATED',
+                            admins: Array.from(currentRoom.admins),
+                            listeners: Array.from(currentRoom.listeners.values()),
+                            message: `${targetListener ? targetListener.name : 'User'} is no longer an Admin.`
+                        });
+                    }
+                }
+                else if (msgType === 'TRANSFER_HOST') {
+                    if (currentRoom.host_id === currentUserId && msg.target_user_id) {
+                        currentRoom.host_id = msg.target_user_id;
+                        for (const [uid, l] of currentRoom.listeners.entries()) {
+                            l.is_host = (uid === msg.target_user_id);
+                        }
+                        currentRoom.broadcast({
+                            type: 'HOST_CHANGED',
+                            new_host_id: msg.target_user_id,
+                            listeners: Array.from(currentRoom.listeners.values()),
+                            admins: Array.from(currentRoom.admins)
+                        });
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('Error processing WS message:', err);
+            }
+        },
+        onClose(event, ws) {
+            if (currentRoom && currentUserId) {
+                currentRoom.removeSocket(ws);
+                currentRoom.removeListener(currentUserId);
+                if (currentRoom.listeners.size === 0 && currentRoom.sockets.size === 0) {
+                    syncManager.deleteRoom(currentRoom.code);
+                }
+                else {
+                    currentRoom.broadcast({
+                        type: 'USER_LEFT',
+                        user_id: currentUserId,
+                        user_name: currentUserName,
+                        listener_count: currentRoom.listeners.size,
+                        listeners: Array.from(currentRoom.listeners.values()),
+                        host_id: currentRoom.host_id
+                    });
+                }
+            }
+        },
+        onError(event, ws) {
+            console.warn('SoundSync WebSocket Error:', event);
+        }
+    };
+}
+// WebSocket Route at /ws (with ?room= query param)
+app.get('/ws', upgradeWebSocket((c) => {
+    const roomQuery = c.req.query('room') || c.req.query('code') || '';
+    return createRoomWSHandler(roomQuery);
+}));
+// WebSocket Route at /ws/room/:room_code
+app.get('/ws/room/:room_code', upgradeWebSocket((c) => {
+    const roomCode = c.req.param('room_code');
+    return createRoomWSHandler(roomCode);
+}));
 // ----------------- HEALTH & SYSTEM ----------------- //
 app.get('/health', (c) => {
     return c.json({
         status: 'healthy',
         service: 'OXYZEN Luxury Music Platform',
-        engine: 'Hono + JioSaavn Engine 2.0',
+        engine: 'Hono + JioSaavn + SoundSync WebSocket 2.0',
         version: '2.0.0',
         time: Date.now() / 1000
     });
@@ -111,7 +361,6 @@ app.get('/api/stream/:id', async (c) => {
         if (!song || !song.stream_url) {
             return c.json({ error: 'Audio stream not found' }, 404);
         }
-        // If stream_url is a direct CDN link (e.g. https://aac.saavncdn.com/...), redirect immediately
         if (song.stream_url.startsWith('http')) {
             return c.redirect(song.stream_url, 302);
         }
@@ -245,7 +494,7 @@ app.post('/api/library/history/clear', (c) => {
     clearHistory();
     return c.json({ status: 'cleared' });
 });
-// ----------------- SOUNDSYNC LISTENING ROOMS ----------------- //
+// ----------------- SOUNDSYNC REST ENDPOINTS ----------------- //
 app.post('/api/rooms/create', async (c) => {
     const data = await c.req.json().catch(() => ({}));
     const roomName = data.room_name || 'Oxyzen SoundSync Lounge';
@@ -281,14 +530,11 @@ app.post('/api/rooms/:code/sync', async (c) => {
 // ----------------- DIRECT DOWNLOAD ----------------- //
 app.get('/api/download/:id', async (c) => {
     const id = c.req.param('id');
-    const title = c.req.query('title') || 'Track';
-    const artist = c.req.query('artist') || 'Artist';
     try {
         const song = await getSongDetails(id);
         if (!song || !song.stream_url) {
             return c.json({ error: 'Download link not available' }, 404);
         }
-        // Redirect to direct CDN stream link
         return c.redirect(song.stream_url, 302);
     }
     catch (err) {
@@ -306,17 +552,19 @@ app.get('/', (c) => {
         const html = fs.readFileSync(indexPath, 'utf-8');
         return c.html(html);
     }
-    return c.text('Oxyzen Music Platform - Static files initializing...');
+    return c.text('Oxyzen Music Platform - Loading...');
 });
 // Start Server
 const port = parseInt(process.env.PORT || '8000', 10);
 const host = process.env.HOST || '0.0.0.0';
 console.log(`==================================================`);
 console.log(`✦ OXYZEN LUXURY MUSIC ENGINE RUNNING ON http://localhost:${port} ✦`);
-console.log(`✦ Powered by Hono & High-Fidelity JioSaavn CDN Engine ✦`);
+console.log(`✦ WebSocket SoundSync Active on ws://localhost:${port}/ws ✦`);
 console.log(`==================================================`);
-serve({
+const server = serve({
     fetch: app.fetch,
     port,
     hostname: host
 });
+// Inject WebSockets into the Node HTTP server
+injectWebSocket(server);

@@ -1,6 +1,7 @@
 /**
  * OXYZEN SOUNDSYNC CLIENT
  * Real-Time WebSocket Multi-Device Synchronized Listening Rooms with Song Requests & Co-Host Admins
+ * Features: Auto-reconnect with exponential backoff, heartbeat keep-alive, echo loop prevention.
  */
 
 class SoundSyncClient {
@@ -18,8 +19,14 @@ class SoundSyncClient {
     this.listeners = [];
     this.admins = [];
     this.requests = [];
+    this.queue = [];
     this.connected = false;
+    this.isConnecting = false;
     this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 6;
+    this.reconnectTimer = null;
+    this.pingInterval = null;
+    this.isRemoteUpdate = false;
     
     this.onStateChange = null;
     this.onReaction = null;
@@ -39,62 +46,126 @@ class SoundSyncClient {
 
   joinRoom(roomCode, roomName = null) {
     if (this.ws) {
-      this.leaveRoom();
+      this.leaveRoom(false);
     }
 
-    this.roomCode = roomCode.toUpperCase().trim();
+    this.roomCode = (roomCode || "OXYZEN").toUpperCase().trim();
     this.roomName = roomName;
+    this.isConnecting = true;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/room/${this.roomCode}`;
+    const host = window.location.host || "localhost:8000";
+    const wsUrl = `${protocol}//${host}/ws/room/${encodeURIComponent(this.roomCode)}`;
 
-    this.ws = new WebSocket(wsUrl);
+    try {
+      this.ws = new WebSocket(wsUrl);
 
-    this.ws.onopen = () => {
-      this.connected = true;
-      this.reconnectAttempts = 0;
-      // Send JOIN handshake
-      this.send({
-        type: "JOIN",
-        user_id: this.userId,
-        user_name: this.userName,
-        avatar: this.avatar
-      });
-      window.dispatchEvent(new CustomEvent("oxyzen:sync_connected", { detail: { roomCode: this.roomCode } }));
-    };
+      this.ws.onopen = () => {
+        this.connected = true;
+        this.isConnecting = false;
+        this.reconnectAttempts = 0;
 
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleMessage(data);
-      } catch (err) {
-        console.error("Error parsing SoundSync message:", err);
-      }
-    };
+        // Send JOIN handshake
+        this.send({
+          type: "JOIN",
+          room_code: this.roomCode,
+          user_id: this.userId,
+          user_name: this.userName,
+          avatar: this.avatar
+        });
 
-    this.ws.onclose = () => {
-      this.connected = false;
-      window.dispatchEvent(new CustomEvent("oxyzen:sync_disconnected"));
-    };
+        // Start ping interval for connection keepalive on Render proxy
+        this.startHeartbeat();
 
-    this.ws.onerror = (err) => {
-      console.warn("SoundSync WebSocket Error:", err);
-    };
+        window.dispatchEvent(new CustomEvent("oxyzen:sync_connected", { detail: { roomCode: this.roomCode } }));
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.handleMessage(data);
+        } catch (err) {
+          console.error("Error parsing SoundSync message:", err);
+        }
+      };
+
+      this.ws.onclose = (event) => {
+        const wasConnected = this.connected;
+        this.connected = false;
+        this.isConnecting = false;
+        this.stopHeartbeat();
+
+        window.dispatchEvent(new CustomEvent("oxyzen:sync_disconnected", { detail: { code: event.code, reason: event.reason } }));
+
+        // Attempt auto-reconnect if not explicitly closed
+        if (this.roomCode && event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+          console.info(`SoundSync connection closed. Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+          this.reconnectTimer = setTimeout(() => {
+            if (this.roomCode) {
+              this.joinRoom(this.roomCode, this.roomName);
+            }
+          }, delay);
+        }
+      };
+
+      this.ws.onerror = (err) => {
+        console.warn("SoundSync WebSocket Error:", err);
+        this.isConnecting = false;
+      };
+    } catch (e) {
+      console.error("Failed to construct WebSocket:", e);
+      this.isConnecting = false;
+    }
   }
 
-  leaveRoom() {
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.pingInterval = setInterval(() => {
+      if (this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.send({ type: "PING", timestamp: Date.now() });
+      }
+    }, 20000);
+  }
+
+  stopHeartbeat() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
+  leaveRoom(notifyServer = true) {
+    this.stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     if (this.ws) {
-      this.ws.close();
+      if (notifyServer && this.connected) {
+        this.send({ type: "LEAVE_ROOM", user_id: this.userId });
+      }
+      this.ws.close(1000, "User Left");
       this.ws = null;
     }
+
     this.connected = false;
+    this.isConnecting = false;
     this.roomCode = null;
     this.isHost = false;
     this.isAdmin = false;
     this.listeners = [];
     this.admins = [];
     this.requests = [];
+    this.queue = [];
+    this.reconnectAttempts = 0;
     window.dispatchEvent(new CustomEvent("oxyzen:sync_left"));
   }
 
@@ -107,17 +178,24 @@ class SoundSyncClient {
   handleMessage(msg) {
     const type = msg.type;
 
+    if (type === "PONG") {
+      // Heartbeat acknowledged
+      return;
+    }
+
     if (type === "ROOM_STATE") {
-      const state = msg.state;
-      this.isHost = msg.you ? msg.you.is_host : false;
+      const state = msg.state || {};
+      this.isHost = msg.you ? msg.you.is_host : (state.host_id === this.userId);
       this.listeners = state.listeners || [];
       this.admins = state.admins || [];
       this.isAdmin = this.isHost || this.admins.includes(this.userId);
       this.requests = state.requests || [];
-      this.roomName = state.room_name;
+      this.queue = state.queue || [];
+      this.roomName = state.room_name || this.roomName;
       
       // Sync track if playing
       if (state.current_track) {
+        this.isRemoteUpdate = true;
         window.dispatchEvent(new CustomEvent("oxyzen:sync_play_track", {
           detail: {
             track: state.current_track,
@@ -125,6 +203,7 @@ class SoundSyncClient {
             isPlaying: state.is_playing
           }
         }));
+        setTimeout(() => { this.isRemoteUpdate = false; }, 300);
       }
 
       if (this.onStateChange) this.onStateChange(state);
@@ -132,6 +211,7 @@ class SoundSyncClient {
     }
 
     else if (type === "PLAY_TRACK") {
+      this.isRemoteUpdate = true;
       window.dispatchEvent(new CustomEvent("oxyzen:sync_play_track", {
         detail: {
           track: msg.track,
@@ -140,9 +220,11 @@ class SoundSyncClient {
           triggeredBy: msg.triggered_by
         }
       }));
+      setTimeout(() => { this.isRemoteUpdate = false; }, 300);
     }
 
     else if (type === "PLAY_STATE") {
+      this.isRemoteUpdate = true;
       window.dispatchEvent(new CustomEvent("oxyzen:sync_play_state", {
         detail: {
           isPlaying: msg.is_playing,
@@ -150,20 +232,24 @@ class SoundSyncClient {
           triggeredBy: msg.triggered_by
         }
       }));
+      setTimeout(() => { this.isRemoteUpdate = false; }, 300);
     }
 
     else if (type === "SEEK") {
+      this.isRemoteUpdate = true;
       window.dispatchEvent(new CustomEvent("oxyzen:sync_seek", {
         detail: {
           time: msg.time
         }
       }));
+      setTimeout(() => { this.isRemoteUpdate = false; }, 300);
     }
 
     else if (type === "QUEUE_UPDATED") {
+      this.queue = msg.queue || [];
       window.dispatchEvent(new CustomEvent("oxyzen:sync_queue", {
         detail: {
-          queue: msg.queue,
+          queue: this.queue,
           addedBy: msg.added_by
         }
       }));
@@ -245,30 +331,31 @@ class SoundSyncClient {
 
     else if (type === "ERROR") {
       window.dispatchEvent(new CustomEvent("oxyzen:sync_error", { detail: msg }));
-      this.leaveRoom();
     }
   }
 
   // Playback Control Emitters
   broadcastPlayTrack(track) {
-    if (!this.connected) return;
+    if (!this.connected || this.isRemoteUpdate) return;
     this.send({
       type: "PLAY_TRACK",
-      track: track
+      track: track,
+      current_time: 0
     });
   }
 
   broadcastPlayState(isPlaying, currentTime) {
-    if (!this.connected) return;
+    if (!this.connected || this.isRemoteUpdate) return;
     this.send({
       type: "PLAY_STATE",
       is_playing: isPlaying,
-      current_time: currentTime
+      current_time: currentTime,
+      timestamp: Date.now() / 1000
     });
   }
 
   broadcastSeek(time) {
-    if (!this.connected) return;
+    if (!this.connected || this.isRemoteUpdate) return;
     this.send({
       type: "SEEK",
       time: time
@@ -335,7 +422,7 @@ class SoundSyncClient {
   }
 
   broadcastTransferHost(targetUserId) {
-    if (!this.connected || !this.isHost) return;
+    if (!this.connected || !this.isHost || !targetUserId) return;
     this.send({
       type: "TRANSFER_HOST",
       target_user_id: targetUserId

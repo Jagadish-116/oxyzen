@@ -1,8 +1,9 @@
 /**
- * OXYZEN HIGH-FIDELITY WEB AUDIO ENGINE
+ * OXYZEN HIGH-FIDELITY WEB AUDIO ENGINE 2.0
  * - 10-Band Parametric Graphic Equalizer
  * - 8D Binaural Spatial Audio Surround Simulator
- * - 60fps Real-Time Web Audio Canvas Spectrum Visualizer
+ * - Real-Time Audio-Reactive Motion Visualizer & Sound Variations
+ * - Resilient Multi-Bitrate Audio Stream Fallback
  * - MediaSession API OS Background Lockscreen Controls
  */
 
@@ -25,18 +26,20 @@ class OxyzenAudioEngine {
     
     // 8D Audio Variables
     this.spatial8DEnabled = false;
-    this.spatialSpeed = 0.05; // oscillation speed
+    this.spatialSpeed = 0.05;
     this.spatialAngle = 0;
     this.spatialInterval = null;
-    
+
     // Track State
     this.currentTrack = null;
     this.isPlaying = false;
     this.isInitialized = false;
 
-    // Visualizer Canvases
-    this.dockCanvas = null;
-    this.dockCtx = null;
+    // Stream Fallback Candidates
+    this.streamCandidates = [];
+    this.currentCandidateIdx = 0;
+
+    // Visualizer Canvas & Motion Animation
     this.cinemaCanvas = null;
     this.cinemaCtx = null;
     this.animationFrameId = null;
@@ -55,8 +58,8 @@ class OxyzenAudioEngine {
       
       // Analyser for Visualizer
       this.analyserNode = this.audioCtx.createAnalyser();
-      this.analyserNode.fftSize = 256;
-      this.analyserNode.smoothingTimeConstant = 0.82;
+      this.analyserNode.fftSize = 512;
+      this.analyserNode.smoothingTimeConstant = 0.85;
 
       // Master Gain
       this.masterGainNode = this.audioCtx.createGain();
@@ -68,7 +71,7 @@ class OxyzenAudioEngine {
         this.pannerNode.pan.value = 0;
       }
 
-      // Build 10-band Equalizer chain
+      // Build 10-band Equalizer chain (default 0dB clean passthrough)
       let previousNode = this.sourceNode;
       this.eqFilters = this.eqFrequencies.map((freq, index) => {
         const filter = this.audioCtx.createBiquadFilter();
@@ -143,123 +146,144 @@ class OxyzenAudioEngine {
       window.dispatchEvent(new CustomEvent("oxyzen:ended", { detail: { track: this.currentTrack } }));
     });
 
-    this.retryCount = 0;
-    this.maxRetries = 2;
-
     this.audio.addEventListener("waiting", () => {
       window.dispatchEvent(new CustomEvent("oxyzen:waiting", { detail: { track: this.currentTrack } }));
     });
 
     this.audio.addEventListener("playing", () => {
-      this.retryCount = 0;
       window.dispatchEvent(new CustomEvent("oxyzen:playing", { detail: { track: this.currentTrack } }));
     });
 
-    this.audio.addEventListener("stalled", () => {
-      console.warn("Audio stream stalled, checking buffer...");
-    });
-
+    // Resilient Fallback: If current stream URL errors, try next available bitrate or proxy!
     this.audio.addEventListener("error", async (e) => {
-      console.warn("Audio playback stream error:", e);
-      if (this.currentTrack && this.retryCount < this.maxRetries) {
-        this.retryCount++;
-        const id = this.currentTrack.id || this.currentTrack.videoId;
-        console.info(`Attempting resilient stream recovery (attempt ${this.retryCount}/${this.maxRetries}) for ${id}...`);
+      console.warn("Audio stream playback notice on:", this.audio.src);
+      if (this.streamCandidates.length > 0 && this.currentCandidateIdx < this.streamCandidates.length - 1) {
+        this.currentCandidateIdx++;
+        const nextUrl = this.streamCandidates[this.currentCandidateIdx];
+        console.log(`Switching to backup stream candidate (${this.currentCandidateIdx + 1}/${this.streamCandidates.length}):`, nextUrl);
+        this.audio.src = nextUrl;
         try {
-          // Fetch fresh song details to obtain fresh direct CDN link
-          const res = await fetch(`/api/song/${id}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.stream_url) {
-              this.currentTrack.stream_url = data.stream_url;
-              this.currentTrack.downloadUrl = data.downloadUrl;
-              this.audio.src = data.stream_url;
-              await this.audio.play();
-              this.isPlaying = true;
-              return;
-            }
-          }
-        } catch (retryErr) {
-          console.warn("Resilient audio recovery attempt failed:", retryErr);
+          await this.audio.play();
+          this.isPlaying = true;
+        } catch (err) {
+          console.warn("Fallback play error:", err);
         }
       }
-      // If retries exhausted or failed
-      window.dispatchEvent(new CustomEvent("oxyzen:stream_failed", { detail: { track: this.currentTrack, error: e } }));
-      window.dispatchEvent(new CustomEvent("oxyzen:error", { detail: { error: e, track: this.currentTrack } }));
     });
+
+    this.setupMediaSession();
   }
 
+  // -------------------------------------------------------------
+  // PLAYBACK CONTROL METHODS
+  // -------------------------------------------------------------
   async loadAndPlay(track, startTime = 0) {
-    this.ensureContextActive();
+    if (!track) return;
     this.currentTrack = track;
-    this.retryCount = 0;
-    
-    // Resolve direct high-bitrate JioSaavn CDN audio stream URL
-    let streamUrl = track.stream_url || track.direct_url || '';
-    if (!streamUrl && Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
-      // Use highest bitrate quality (last element in array, e.g. 320kbps)
-      streamUrl = track.downloadUrl[track.downloadUrl.length - 1].url;
+    this.ensureContextActive();
+
+    // Build fallback candidate URLs
+    this.streamCandidates = [];
+    if (track.stream_url) this.streamCandidates.push(track.stream_url);
+    if (track.downloadUrl && Array.isArray(track.downloadUrl)) {
+      for (let i = track.downloadUrl.length - 1; i >= 0; i--) {
+        const url = track.downloadUrl[i].url;
+        if (url && !this.streamCandidates.includes(url)) {
+          this.streamCandidates.push(url);
+        }
+      }
     }
-    
-    const id = track.id || track.videoId;
-    if (!streamUrl && id) {
-      streamUrl = `/api/stream/${id}`;
+    const proxyUrl = `/api/stream/${track.id}`;
+    if (!this.streamCandidates.includes(proxyUrl)) {
+      this.streamCandidates.push(proxyUrl);
     }
 
-    this.audio.src = streamUrl;
-    
+    this.currentCandidateIdx = 0;
+    const initialUrl = this.streamCandidates[0];
+    this.audio.src = initialUrl;
+
     if (startTime > 0) {
       this.audio.currentTime = startTime;
     }
 
-    this.updateMediaSessionMetadata(track);
-
     try {
       await this.audio.play();
       this.isPlaying = true;
+      this.updateMediaSessionMetadata(track);
     } catch (err) {
-      console.warn("Autoplay was prevented, waiting for user interaction:", err);
+      console.warn("Playback requires user gesture or stream buffering:", err);
+      this.isPlaying = false;
     }
-  }
-
-  prefetchTrack(track) {
-    if (!track) return;
-    const id = track.id || track.videoId;
-    if (!id) return;
-    try {
-      if (!track.stream_url) {
-        fetch(`/api/song/${id}`).catch(() => {});
-      }
-    } catch (e) {}
   }
 
   play() {
     this.ensureContextActive();
-    return this.audio.play();
+    return this.audio.play().then(() => {
+      this.isPlaying = true;
+    });
   }
 
   pause() {
     this.audio.pause();
+    this.isPlaying = false;
   }
 
   seek(seconds) {
-    if (Number.isFinite(seconds)) {
-      this.audio.currentTime = Math.max(0, Math.min(seconds, this.audio.duration || 99999));
-      this.updateMediaSessionPositionState();
+    if (!isNaN(seconds) && isFinite(seconds)) {
+      this.audio.currentTime = Math.max(0, Math.min(seconds, this.audio.duration || 9999));
     }
   }
 
-  setVolume(vol) {
-    const v = Math.max(0, Math.min(1, vol));
-    this.audio.volume = v;
+  setVolume(volume) {
+    const val = Math.max(0, Math.min(1, volume));
+    this.audio.volume = val;
+    if (this.masterGainNode) {
+      this.masterGainNode.gain.value = val;
+    }
   }
 
-  // 10-Band Equalizer Methods
+  // -------------------------------------------------------------
+  // 8D BINAURAL SPATIAL AUDIO PANNER
+  // -------------------------------------------------------------
+  toggle8D() {
+    this.spatial8DEnabled = !this.spatial8DEnabled;
+    this.ensureContextActive();
+
+    if (this.spatial8DEnabled) {
+      this.spatialAngle = 0;
+      if (this.spatialInterval) clearInterval(this.spatialInterval);
+      this.spatialInterval = setInterval(() => {
+        this.spatialAngle += this.spatialSpeed;
+        const pan = Math.sin(this.spatialAngle);
+        if (this.pannerNode && this.pannerNode.pan) {
+          this.pannerNode.pan.value = pan;
+        }
+      }, 50);
+    } else {
+      if (this.spatialInterval) {
+        clearInterval(this.spatialInterval);
+        this.spatialInterval = null;
+      }
+      if (this.pannerNode && this.pannerNode.pan) {
+        this.pannerNode.pan.value = 0;
+      }
+    }
+    return this.spatial8DEnabled;
+  }
+
+  get is8DActive() {
+    return this.spatial8DEnabled;
+  }
+
+  // -------------------------------------------------------------
+  // 10-BAND PARAMETRIC EQUALIZER
+  // -------------------------------------------------------------
   setEqBandGain(index, gainDb) {
     if (index >= 0 && index < this.eqFilters.length) {
-      this.eqGains[index] = gainDb;
+      const val = Math.max(-12, Math.min(12, gainDb));
+      this.eqGains[index] = val;
       if (this.eqFilters[index]) {
-        this.eqFilters[index].gain.setTargetAtTime(gainDb, this.audioCtx.currentTime, 0.05);
+        this.eqFilters[index].gain.value = val;
       }
     }
   }
@@ -267,144 +291,124 @@ class OxyzenAudioEngine {
   applyEqPreset(presetName) {
     const presets = {
       flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      bass_boost: [8, 6, 4, 2, 0, 0, 1, 2, 3, 4],
-      vocal: [-2, -2, -1, 1, 3, 5, 4, 3, 1, 0],
-      electronic: [6, 5, 2, 0, -2, 2, 1, 3, 5, 6],
-      rock: [5, 3, 2, 0, -1, 1, 3, 4, 5, 5],
-      acoustic: [3, 2, 1, 2, 3, 3, 2, 3, 4, 3],
-      lofi_chill: [4, 3, 1, 0, -1, -1, 0, 1, -2, -4]
+      bass_boost: [6, 5, 4, 2, 0, 0, 0, 1, 2, 3],
+      vocal: [-2, -1, 1, 3, 4, 4, 3, 2, 1, 0],
+      electronic: [5, 4, 2, 0, -1, 1, 3, 4, 5, 5],
+      rock: [4, 3, 2, -1, -2, 0, 2, 4, 4, 5],
+      acoustic: [3, 2, 1, 1, 2, 2, 3, 3, 3, 2],
+      lofi_chill: [4, 3, 1, 0, 0, -1, -2, -3, -4, -6]
     };
+
     const gains = presets[presetName] || presets.flat;
     gains.forEach((g, i) => this.setEqBandGain(i, g));
     return gains;
   }
 
-  // 8D Spatial Audio Methods
-  toggle8DSpatial(enable = null) {
-    this.spatial8DEnabled = (enable !== null) ? enable : !this.spatial8DEnabled;
-    if (this.spatial8DEnabled) {
-      if (!this.spatialInterval) {
-        this.spatialInterval = setInterval(() => {
-          if (!this.pannerNode || !this.isPlaying) return;
-          this.spatialAngle += this.spatialSpeed;
-          const pan = Math.sin(this.spatialAngle);
-          this.pannerNode.pan.setTargetAtTime(pan, this.audioCtx.currentTime, 0.1);
-        }, 50);
-      }
-    } else {
-      if (this.spatialInterval) {
-        clearInterval(this.spatialInterval);
-        this.spatialInterval = null;
-      }
-      if (this.pannerNode) {
-        this.pannerNode.pan.setTargetAtTime(0, this.audioCtx.currentTime, 0.1);
-      }
-    }
-    return this.spatial8DEnabled;
-  }
-
-  set8DSpeed(speed) {
-    this.spatialSpeed = Math.max(0.01, Math.min(0.2, speed));
-  }
-
-  // Visualizer Setup
-  setVisualizerCanvases(dockCanvas, cinemaCanvas) {
-    this.dockCanvas = dockCanvas;
-    this.cinemaCanvas = cinemaCanvas;
-    if (dockCanvas) this.dockCtx = dockCanvas.getContext("2d");
-    if (cinemaCanvas) this.cinemaCtx = cinemaCanvas.getContext("2d");
-  }
-
+  // -------------------------------------------------------------
+  // REAL-TIME AUDIO-REACTIVE VISUALIZER (STRICT BEATS ONLY)
+  // -------------------------------------------------------------
   startVisualizerLoop() {
-    if (this.animationFrameId) return;
+    let lastBassAvg = 0;
 
     const render = () => {
       this.animationFrameId = requestAnimationFrame(render);
-      if (!this.analyserNode) return;
+      if (!this.analyserNode || !this.isPlaying) return;
 
       const bufferLength = this.analyserNode.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
       this.analyserNode.getByteFrequencyData(dataArray);
 
-      // 1. Render Dock Canvas Preview
-      if (this.dockCtx && this.dockCanvas) {
-        const ctx = this.dockCtx;
-        const width = this.dockCanvas.width;
-        const height = this.dockCanvas.height;
-        ctx.clearRect(0, 0, width, height);
+      // Compute instantaneous sub-bass and bass energy for beat impact
+      let bassSum = 0;
+      for (let i = 0; i < 8; i++) bassSum += dataArray[i];
+      const bassAvg = bassSum / 8; // 0 - 255
 
-        const barCount = 16;
-        const barWidth = width / barCount - 1.5;
-        for (let i = 0; i < barCount; i++) {
-          const val = dataArray[i * 4] || 0;
-          const percent = val / 255;
-          const barHeight = Math.max(2, percent * height);
-          
-          const grad = ctx.createLinearGradient(0, height, 0, 0);
-          grad.addColorStop(0, "#F5C542");
-          grad.addColorStop(1, "#22D3EE");
-          
-          ctx.fillStyle = grad;
-          ctx.fillRect(i * (barWidth + 1.5), height - barHeight, barWidth, barHeight);
-        }
+      // Detect beat hit / transient
+      const isBeatHit = (bassAvg > 140 && bassAvg > lastBassAvg * 1.15);
+      lastBassAvg = bassAvg * 0.7 + lastBassAvg * 0.3; // Decay
+
+      const bassScale = 1 + (bassAvg / 255) * 0.12;
+      const beatGlow = (bassAvg / 255);
+
+      // Update CSS variables for beat-reactive breathing and pulsation
+      document.documentElement.style.setProperty('--bass-scale', bassScale.toFixed(3));
+      document.documentElement.style.setProperty('--beat-glow', beatGlow.toFixed(3));
+
+      // Render Cinema Mode Beat-Reactive Visualizer Canvas
+      if (!this.cinemaCanvas) {
+        this.cinemaCanvas = document.getElementById("cinema-visualizer-canvas");
+        if (this.cinemaCanvas) this.cinemaCtx = this.cinemaCanvas.getContext("2d");
       }
 
-      // 2. Render Fullscreen Cinema Spectrum
-      if (this.cinemaCtx && this.cinemaCanvas) {
+      if (this.cinemaCanvas && this.cinemaCtx) {
         const ctx = this.cinemaCtx;
-        const width = this.cinemaCanvas.width;
-        const height = this.cinemaCanvas.height;
-        ctx.clearRect(0, 0, width, height);
+        const w = this.cinemaCanvas.width;
+        const h = this.cinemaCanvas.height;
+        ctx.clearRect(0, 0, w, h);
 
-        const barCount = 64;
-        const barWidth = width / barCount - 3;
-        for (let i = 0; i < barCount; i++) {
-          const val = dataArray[i * 2] || 0;
-          const percent = val / 255;
-          const barHeight = Math.max(4, percent * height * 0.9);
+        // Beat-reactive frequency spectrum bars
+        const numBars = 64;
+        const barWidth = w / numBars;
+        const step = Math.floor((bufferLength / 2) / numBars) || 1;
 
-          const grad = ctx.createLinearGradient(0, height, 0, height - barHeight);
-          grad.addColorStop(0, "rgba(245, 197, 66, 0.2)");
-          grad.addColorStop(0.5, "rgba(34, 211, 238, 0.6)");
-          grad.addColorStop(1, "rgba(168, 85, 247, 0.9)");
+        for (let i = 0; i < numBars; i++) {
+          const val = dataArray[i * step] / 255.0;
+          const barHeight = val * h * 0.9;
+          const x = i * barWidth;
+
+          const grad = ctx.createLinearGradient(0, h, 0, h - barHeight);
+          grad.addColorStop(0, "rgba(245, 197, 66, 0.15)");
+          grad.addColorStop(0.6, "rgba(168, 85, 247, 0.65)");
+          grad.addColorStop(1, "rgba(34, 211, 238, 0.95)");
 
           ctx.fillStyle = grad;
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = "#22D3EE";
-          ctx.fillRect(i * (barWidth + 3), height - barHeight, barWidth, barHeight);
+          ctx.fillRect(x + 1, h - barHeight, barWidth - 2, barHeight);
+
+          // Glowing peak cap on beat impact
+          if (val > 0.4) {
+            ctx.fillStyle = "#F5C542";
+            ctx.shadowColor = "#F5C542";
+            ctx.shadowBlur = 8;
+            ctx.fillRect(x + 1, h - barHeight - 2, barWidth - 2, 2);
+            ctx.shadowBlur = 0;
+          }
         }
       }
     };
+
     render();
   }
 
-  // OS MediaSession Lockscreen & Bluetooth Controls
-  updateMediaSessionMetadata(track) {
-    if (!('mediaSession' in navigator) || !track) return;
-    const artworkUrl = track.image || track.thumbnail || "/static/assets/logo.png";
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title || "Oxyzen Track",
-      artist: track.artist || "Oxyzen Artist",
-      album: track.album || "Oxyzen Pure Music",
-      artwork: [
-        { src: artworkUrl, sizes: '512x512', type: 'image/jpeg' },
-        { src: artworkUrl, sizes: '256x256', type: 'image/jpeg' },
-        { src: artworkUrl, sizes: '96x96', type: 'image/jpeg' }
-      ]
-    });
+  // -------------------------------------------------------------
+  // OS MEDIASESSION API
+  // -------------------------------------------------------------
+  setupMediaSession() {
+    if (!('mediaSession' in navigator)) return;
 
     navigator.mediaSession.setActionHandler('play', () => this.play());
     navigator.mediaSession.setActionHandler('pause', () => this.pause());
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime) this.seek(details.seekTime);
+    });
     navigator.mediaSession.setActionHandler('previoustrack', () => {
-      window.dispatchEvent(new CustomEvent("oxyzen:prev"));
+      window.dispatchEvent(new CustomEvent("oxyzen:request_prev"));
     });
     navigator.mediaSession.setActionHandler('nexttrack', () => {
-      window.dispatchEvent(new CustomEvent("oxyzen:next"));
+      window.dispatchEvent(new CustomEvent("oxyzen:request_next"));
     });
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.seekTime !== undefined) {
-        this.seek(details.seekTime);
-      }
+  }
+
+  updateMediaSessionMetadata(track) {
+    if (!('mediaSession' in navigator) || !track) return;
+    const thumb = track.image || track.thumbnail || '/static/assets/logo.png';
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title || 'Unknown Title',
+      artist: track.artist || 'Unknown Artist',
+      album: track.album || 'Oxyzen Audio',
+      artwork: [
+        { src: thumb, sizes: '500x500', type: 'image/png' },
+        { src: thumb, sizes: '150x150', type: 'image/png' }
+      ]
     });
   }
 
@@ -416,13 +420,24 @@ class OxyzenAudioEngine {
 
   updateMediaSessionPositionState() {
     if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
-      if (this.audio.duration && !isNaN(this.audio.duration)) {
+      if (this.audio.duration && !isNaN(this.audio.duration) && isFinite(this.audio.duration)) {
         navigator.mediaSession.setPositionState({
           duration: this.audio.duration,
           playbackRate: this.audio.playbackRate || 1.0,
-          position: Math.min(this.audio.currentTime, this.audio.duration)
+          position: this.audio.currentTime || 0
         });
       }
+    }
+  }
+
+  prefetchTrack(track) {
+    if (!track) return;
+    const streamUrl = track.stream_url || track.direct_url || (track.downloadUrl && track.downloadUrl.length > 0 ? track.downloadUrl[track.downloadUrl.length - 1].url : null);
+    if (streamUrl) {
+      const link = document.createElement("link");
+      link.rel = "prefetch";
+      link.href = streamUrl;
+      document.head.appendChild(link);
     }
   }
 }

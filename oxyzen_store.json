@@ -47,6 +47,718 @@
   "playlists": [],
   "history": [
     {
+      "id": "qbQ0IFxj",
+      "videoId": "qbQ0IFxj",
+      "title": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "artist": "Anirudh Ravichander, Singer Prabha, Jangi Reddy, Kasarla Shyam",
+      "album": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "image": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "duration": "3:08",
+      "duration_sec": 188,
+      "duration_formatted": "3:08",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788275149.22
+    },
+    {
+      "id": "059HTRVM",
+      "videoId": "059HTRVM",
+      "title": "Manassa",
+      "artist": "Harris Jayaraj, Haricharan",
+      "album": "Munna",
+      "image": "https://c.saavncdn.com/626/Munna-2000-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/626/Munna-2000-500x500.jpg",
+      "duration": "5:51",
+      "duration_sec": 351,
+      "duration_formatted": "5:51",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/626/488e23d95413ff6fdeee8f382eaf6da6_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/626/488e23d95413ff6fdeee8f382eaf6da6_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/626/488e23d95413ff6fdeee8f382eaf6da6_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/626/488e23d95413ff6fdeee8f382eaf6da6_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/626/488e23d95413ff6fdeee8f382eaf6da6_320.mp4",
+      "language": "telugu",
+      "year": "2007",
+      "has_lyrics": true,
+      "played_at": 1788274839.985
+    },
+    {
+      "id": "O_iU1zto",
+      "videoId": "O_iU1zto",
+      "title": "Ola Olaala Ala",
+      "artist": "Ranina Reddy, N.C. Karunya",
+      "album": "Orange",
+      "image": "https://c.saavncdn.com/105/Orange-Telugu-2006-20210624180302-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/105/Orange-Telugu-2006-20210624180302-500x500.jpg",
+      "duration": "5:34",
+      "duration_sec": 334,
+      "duration_formatted": "5:34",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/105/237c590e3f0871ef19b1aab3aee07274_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/105/237c590e3f0871ef19b1aab3aee07274_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/105/237c590e3f0871ef19b1aab3aee07274_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/105/237c590e3f0871ef19b1aab3aee07274_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/105/237c590e3f0871ef19b1aab3aee07274_320.mp4",
+      "language": "telugu",
+      "year": "2010",
+      "has_lyrics": true,
+      "played_at": 1788274546.706
+    },
+    {
+      "id": "Pn3MV5Xv",
+      "videoId": "Pn3MV5Xv",
+      "title": "Entha Kashtamaina (Endukanta Joda Trending Motivation Version)",
+      "artist": "Harris Jayaraj, Balram, Naresh Iyer, Suchith Suresan",
+      "album": "Entha Kashtamaina (Endukanta Joda Trending Motivation Version)",
+      "image": "https://c.saavncdn.com/832/Entha-Kashtamaina-Endukanta-Joda-Trending-Motivation-Version-Telugu-2025-20250728182243-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/832/Entha-Kashtamaina-Endukanta-Joda-Trending-Motivation-Version-Telugu-2025-20250728182243-500x500.jpg",
+      "duration": "0:39",
+      "duration_sec": 39,
+      "duration_formatted": "0:39",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/832/0655c32d565596746363196810576aa3_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/832/0655c32d565596746363196810576aa3_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/832/0655c32d565596746363196810576aa3_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/832/0655c32d565596746363196810576aa3_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/832/0655c32d565596746363196810576aa3_320.mp4",
+      "language": "telugu",
+      "year": "2025",
+      "has_lyrics": true,
+      "played_at": 1788274538.438
+    },
+    {
+      "id": "T4CTvHh-",
+      "videoId": "T4CTvHh-",
+      "title": "Pileche (Trending Version)",
+      "artist": "Mani Sharma, Hemachandra, Shweta Mohan",
+      "album": "Pileche (Trending Version)",
+      "image": "https://c.saavncdn.com/932/Pileche-Trending-Version-Telugu-2025-20250603185433-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/932/Pileche-Trending-Version-Telugu-2025-20250603185433-500x500.jpg",
+      "duration": "0:51",
+      "duration_sec": 51,
+      "duration_formatted": "0:51",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/932/8b570bbfb2906418a3b4f8a9dc7fabaf_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/932/8b570bbfb2906418a3b4f8a9dc7fabaf_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/932/8b570bbfb2906418a3b4f8a9dc7fabaf_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/932/8b570bbfb2906418a3b4f8a9dc7fabaf_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/932/8b570bbfb2906418a3b4f8a9dc7fabaf_320.mp4",
+      "language": "telugu",
+      "year": "2025",
+      "has_lyrics": true,
+      "played_at": 1788274535.934
+    },
+    {
+      "id": "4XA07CB-",
+      "videoId": "4XA07CB-",
+      "title": "Pileche (Trending Version)",
+      "artist": "Mani Sharma, Hemachandra, Shweta Mohan",
+      "album": "Khaleja (Deluxe Edition)",
+      "image": "https://c.saavncdn.com/551/Khaleja-Deluxe-Edition-Telugu-2025-20250606185646-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/551/Khaleja-Deluxe-Edition-Telugu-2025-20250606185646-500x500.jpg",
+      "duration": "0:51",
+      "duration_sec": 51,
+      "duration_formatted": "0:51",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/551/1e468904468b5f737ade240b78d34cca_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/551/1e468904468b5f737ade240b78d34cca_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/551/1e468904468b5f737ade240b78d34cca_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/551/1e468904468b5f737ade240b78d34cca_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/551/1e468904468b5f737ade240b78d34cca_320.mp4",
+      "language": "telugu",
+      "year": "2025",
+      "has_lyrics": true,
+      "played_at": 1788274529.535
+    },
+    {
+      "id": "yDqhnYdK",
+      "videoId": "yDqhnYdK",
+      "title": "Emo Emo (From \"Raahu\")",
+      "artist": "Sid Sriram, Praveen Lakkaraju, Srinivasa Mouli",
+      "album": "Emo Emo (From \"Raahu\")",
+      "image": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "duration": "4:02",
+      "duration_sec": 242,
+      "duration_formatted": "4:02",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "telugu",
+      "year": "2019",
+      "has_lyrics": true,
+      "played_at": 1788273829.957
+    },
+    {
+      "id": "92UtJMBb",
+      "videoId": "92UtJMBb",
+      "title": "Emo Emo LoFi Mix (From \"Raahu\")",
+      "artist": "Srinivasa Mouli, Sid Sriram, Praveen Lakkaraju",
+      "album": "Emo Emo LoFi Mix (From \"Raahu\")",
+      "image": "https://c.saavncdn.com/847/Emo-Emo-LoFi-Mix-From-Raahu-Telugu-2024-20250730132804-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/847/Emo-Emo-LoFi-Mix-From-Raahu-Telugu-2024-20250730132804-500x500.jpg",
+      "duration": "3:37",
+      "duration_sec": 217,
+      "duration_formatted": "3:37",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_320.mp4?Expires=1788274110&Signature=lDaFYNNCI63J9XkaDGY4XGxBnTBPMjVNbonSull67lQXSj8kTJMR3oyn0mPTGZRQXUJuE2IRYYVyWvcnvpMCe89vGh9q5uU-ZcbJv3xSLYSHgc~rFbFbZU5kFRVPsimc4Ktpw1HUNgxyA2cLtNHyZwYslJgGHsgJLBqqqr8bWyh1uR16LosDA2u1hhHSOZ~2aeSzpdE3v39oBH-sF2EqOfyOJIzs1IDhvGDBuUVSgjevGhVbtftXvHLSLkzf3OcrcJmn07YnuPnx7G5GO9-q1XUpPyfAlByNc1ksoKztlajRR7PjmIU5b0n83kAu~yIJk-Sv3d~5QWpDuKNWj7aDTg__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_320.mp4?Expires=1788274110&Signature=lDaFYNNCI63J9XkaDGY4XGxBnTBPMjVNbonSull67lQXSj8kTJMR3oyn0mPTGZRQXUJuE2IRYYVyWvcnvpMCe89vGh9q5uU-ZcbJv3xSLYSHgc~rFbFbZU5kFRVPsimc4Ktpw1HUNgxyA2cLtNHyZwYslJgGHsgJLBqqqr8bWyh1uR16LosDA2u1hhHSOZ~2aeSzpdE3v39oBH-sF2EqOfyOJIzs1IDhvGDBuUVSgjevGhVbtftXvHLSLkzf3OcrcJmn07YnuPnx7G5GO9-q1XUpPyfAlByNc1ksoKztlajRR7PjmIU5b0n83kAu~yIJk-Sv3d~5QWpDuKNWj7aDTg__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/847/14a97546b3b87723907c555e2b9f614b_320.mp4?Expires=1788274110&Signature=lDaFYNNCI63J9XkaDGY4XGxBnTBPMjVNbonSull67lQXSj8kTJMR3oyn0mPTGZRQXUJuE2IRYYVyWvcnvpMCe89vGh9q5uU-ZcbJv3xSLYSHgc~rFbFbZU5kFRVPsimc4Ktpw1HUNgxyA2cLtNHyZwYslJgGHsgJLBqqqr8bWyh1uR16LosDA2u1hhHSOZ~2aeSzpdE3v39oBH-sF2EqOfyOJIzs1IDhvGDBuUVSgjevGhVbtftXvHLSLkzf3OcrcJmn07YnuPnx7G5GO9-q1XUpPyfAlByNc1ksoKztlajRR7PjmIU5b0n83kAu~yIJk-Sv3d~5QWpDuKNWj7aDTg__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "telugu",
+      "year": "2024",
+      "has_lyrics": true,
+      "played_at": 1788273826.619
+    },
+    {
+      "id": "yDqhnYdK",
+      "videoId": "yDqhnYdK",
+      "title": "Emo Emo (From \"Raahu\")",
+      "artist": "Sid Sriram, Praveen Lakkaraju, Srinivasa Mouli",
+      "album": "Emo Emo (From \"Raahu\")",
+      "image": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "duration": "4:02",
+      "duration_sec": 242,
+      "duration_formatted": "4:02",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "telugu",
+      "year": "2019",
+      "has_lyrics": true,
+      "played_at": 1788273819.724
+    },
+    {
+      "id": "yDqhnYdK",
+      "videoId": "yDqhnYdK",
+      "title": "Emo Emo (From \"Raahu\")",
+      "artist": "Sid Sriram, Praveen Lakkaraju, Srinivasa Mouli",
+      "album": "Emo Emo (From \"Raahu\")",
+      "image": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "duration": "4:02",
+      "duration_sec": 242,
+      "duration_formatted": "4:02",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4?Expires=1788274105&Signature=eVGKHFcnE3Nui-dLqVir7LNTd2ZGH9LCVTNvBsw22pRtocDpvWtCfLhqMzG7qah45VuCUllEh19o3dAKEC6lBbzeiWS~wjepHzC1HWkNFx91u3MJKSUtkOz4-moTQcDfCEFWPbkJOxueBZQ7eYrDz3O5~x3gkIjjwi8YwFmqd44BCXiHMPfFIykdegws9KquvwT5dMkPOfEHYw5oPXd1cgnBwB~QLmCLTnhieikBFzWoYal2BUimBzb5jr0BSr5UgW7jAixFj-FKGl-VeAQR1nOMeCa59It6Z4AWaURPayTflqlRXmKqpRDhtDCGrEr9y2AY0VtnvOrnOPOL~BJwWQ__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "telugu",
+      "year": "2019",
+      "has_lyrics": true,
+      "played_at": 1788273809.906
+    },
+    {
+      "id": "dUbS1HWE",
+      "videoId": "dUbS1HWE",
+      "title": "Pranayanila (From \"Teja Bhai And Family\")",
+      "artist": "Deepak Dev, Shaan Rahman",
+      "album": "Top Trending Love Songs",
+      "image": "https://c.saavncdn.com/208/Top-Trending-Love-Songs-Malayalam-2026-20260212195859-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/208/Top-Trending-Love-Songs-Malayalam-2026-20260212195859-500x500.jpg",
+      "duration": "3:57",
+      "duration_sec": 237,
+      "duration_formatted": "3:57",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "malayalam",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788273346.244
+    },
+    {
+      "id": "dUbS1HWE",
+      "videoId": "dUbS1HWE",
+      "title": "Pranayanila (From \"Teja Bhai And Family\")",
+      "artist": "Deepak Dev, Shaan Rahman",
+      "album": "Top Trending Love Songs",
+      "image": "https://c.saavncdn.com/208/Top-Trending-Love-Songs-Malayalam-2026-20260212195859-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/208/Top-Trending-Love-Songs-Malayalam-2026-20260212195859-500x500.jpg",
+      "duration": "3:57",
+      "duration_sec": 237,
+      "duration_formatted": "3:57",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ"
+        }
+      ],
+      "stream_url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "direct_url": "https://ac.cf.saavncdn.com/208/b46ec8ebe520e522e2415e5110264849_320.mp4?Expires=1788273624&Signature=KG6eHSKs7qRSG-eXpcsSffKqI0UWnNzuCgfjgTKaO6Y0WK-8gwk67uw45MIgYPrpFnLMeRcEeivyyjxBsqKcNMsToUXu3-GkVk3EkhYFaeXpceLKEVW8dfZX-RTCI3OS9Gr-GIvlqgPbIxCiWEm7dFnkrASzy1IWw5m~-066XWLDnz-jmlggM3NsEsCAQ9b89HjvGa1eqqDNA7NO5Bp1R3w303gCkOQbagCiO11cW0j~Li~6qMh9yuADozwEMaNbz-5OkazB8fvkqmAIRS23uqlKuxiVmvuGcK3tnIa5UbEhWph71hZhZmANtt~F97RqB1X6a9lb0SlZxU5DaLOtHw__&Key-Pair-Id=APKAJB334VX63D3WJ5ZQ",
+      "language": "malayalam",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788273345.992
+    },
+    {
+      "id": "KLmOLxT3",
+      "videoId": "KLmOLxT3",
+      "title": "Basinga Balaalu",
+      "artist": "Kalyan Keys, Swamy Naresh, Srinidhi Nerella",
+      "album": "Basinga Balaalu",
+      "image": "https://c.saavncdn.com/420/Basinga-Balaalu-Telugu-2026-20260612154016-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/420/Basinga-Balaalu-Telugu-2026-20260612154016-500x500.jpg",
+      "duration": "4:09",
+      "duration_sec": 249,
+      "duration_formatted": "4:09",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788272871.523
+    },
+    {
+      "id": "oxSiV7mG",
+      "videoId": "oxSiV7mG",
+      "title": "Mallepoola Pallaki (From \"Irumudi\")",
+      "artist": "G.V. Prakash Kumar, Dappu Srinu, Chowdam Srinivasa Rao, Sunkara Anjaneyulu",
+      "album": "Mallepoola Pallaki (From \"Irumudi\")",
+      "image": "https://c.saavncdn.com/672/Mallepoola-Pallaki-From-Irumudi-Telugu-2026-20260817091035-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/672/Mallepoola-Pallaki-From-Irumudi-Telugu-2026-20260817091035-500x500.jpg",
+      "duration": "3:00",
+      "duration_sec": 180,
+      "duration_formatted": "3:00",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/672/1dc7bb7aaf49d8a74e37bcbf2bbbdf70_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788272694.984
+    },
+    {
+      "id": "qbQ0IFxj",
+      "videoId": "qbQ0IFxj",
+      "title": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "artist": "Anirudh Ravichander, Singer Prabha, Jangi Reddy, Kasarla Shyam",
+      "album": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "image": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "duration": "3:08",
+      "duration_sec": 188,
+      "duration_formatted": "3:08",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788272499.321
+    },
+    {
+      "id": "9Z6PCiLH",
+      "videoId": "9Z6PCiLH",
+      "title": "Irumudi Kattu (From \"Irumudi\")",
+      "artist": "G.V. Prakash Kumar, Ananthu, Shiva Nirvana, Kalyan Chakravarthy",
+      "album": "Irumudi Kattu (From \"Irumudi\")",
+      "image": "https://c.saavncdn.com/933/Irumudi-Kattu-From-Irumudi-Telugu-2026-20260629001019-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/933/Irumudi-Kattu-From-Irumudi-Telugu-2026-20260629001019-500x500.jpg",
+      "duration": "4:09",
+      "duration_sec": 249,
+      "duration_formatted": "4:09",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788272496.676
+    },
+    {
+      "id": "qbQ0IFxj",
+      "videoId": "qbQ0IFxj",
+      "title": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "artist": "Anirudh Ravichander, Singer Prabha, Jangi Reddy, Kasarla Shyam",
+      "album": "Yeshanagula (From \"The Paradise\") (Telugu)",
+      "image": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/218/Yeshanagula-From-The-Paradise-Telugu-Telugu-2026-20260829173806-500x500.jpg",
+      "duration": "3:08",
+      "duration_sec": 188,
+      "duration_formatted": "3:08",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/218/3d34604c59ae05815f6ad40e90d970af_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788272478.288
+    },
+    {
+      "id": "zJrutXpG",
+      "videoId": "zJrutXpG",
+      "title": "Baagundu Po (From \"Dude (Telugu)\")",
+      "artist": "Sai Abhyankkar, Ramajogayya Sastry, Sanjith Hegde",
+      "album": "Baagundu Po (From \"Dude (Telugu)\")",
+      "image": "https://c.saavncdn.com/292/Baagundu-Po-From-Dude-Telugu-Telugu-2025-20250923213801-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/292/Baagundu-Po-From-Dude-Telugu-Telugu-2025-20250923213801-500x500.jpg",
+      "duration": "3:56",
+      "duration_sec": 236,
+      "duration_formatted": "3:56",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/292/72e2768d13ed0829a68070fb6f5de3ac_320.mp4",
+      "language": "telugu",
+      "year": "2025",
+      "has_lyrics": true,
+      "played_at": 1788272379.614
+    },
+    {
+      "id": "rjkrTnma",
+      "videoId": "rjkrTnma",
+      "title": "Kesariya",
+      "artist": "Pritam, Arijit Singh, Amitabh Bhattacharya",
+      "album": "Brahmastra",
+      "image": "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
+      "duration": "4:28",
+      "duration_sec": 268,
+      "duration_formatted": "4:28",
+      "downloadUrl": [
+        {
+          "bitrate": "12kbps",
+          "url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_12.mp4"
+        },
+        {
+          "bitrate": "48kbps",
+          "url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_48.mp4"
+        },
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/871/c2febd353f3a076a406fa37510f31f9f_320.mp4",
+      "language": "hindi",
+      "year": "2022",
+      "has_lyrics": true,
+      "played_at": 1788271822.347
+    },
+    {
       "id": "BeXBcbVK",
       "videoId": "BeXBcbVK",
       "title": "Believer",
@@ -127,14 +839,15 @@
   ],
   "profile": {
     "username": "Oxyzen Listener",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-    "audio_quality": "Extreme (320kbps Lossless CDN)",
+    "avatar": "🎧",
+    "audio_quality": "320k",
     "languages": [
-      "Hindi",
-      "English",
-      "Telugu"
+      "Telugu",
+      "English"
     ],
     "spatial_8d": false,
-    "eq_preset": "flat"
+    "eq_preset": "flat",
+    "name": "CyberAudiophile",
+    "theme": "gold"
   }
 }

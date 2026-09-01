@@ -39,7 +39,7 @@ class OxyzenApp {
     this.userProfile = {
       name: localStorage.getItem("oxyzen_user_name") || "Oxyzen Listener",
       avatar: localStorage.getItem("oxyzen_user_avatar") || "👑",
-      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["English", "Telugu", "Hindi"]'),
+      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["Telugu", "Hindi", "English"]'),
       audio_quality: localStorage.getItem("oxyzen_audio_quality") || "320k",
       theme: localStorage.getItem("oxyzen_theme") || "gold"
     };
@@ -63,7 +63,7 @@ class OxyzenApp {
   // DOM ELEMENT CACHING
   // -------------------------------------------------------------
   cacheDOMElements() {
-    // Navigation
+    // Navigation (Desktop Sidebar & Mobile Bottom Navigation Bar)
     this.navItems = document.querySelectorAll(".nav-item[data-view], .mobile-nav-tab[data-view]");
     this.pageViews = document.querySelectorAll(".page-view");
 
@@ -130,12 +130,9 @@ class OxyzenApp {
     this.eqOpenBtn = document.getElementById("eq-open-btn");
     this.eqCloseBtn = document.getElementById("eq-close-btn");
 
-    // Profile Elements
-    this.profileModal = document.getElementById("user-profile-modal");
+    // Profile Topbar/Sidebar Buttons
     this.profileOpenBtn = document.getElementById("topbar-profile-btn");
     this.profileSidebarBtn = document.getElementById("sidebar-user-profile-btn");
-    this.profileCloseBtn = document.getElementById("profile-close-btn");
-    this.profileSaveBtn = document.getElementById("profile-save-btn");
   }
 
   // -------------------------------------------------------------
@@ -177,11 +174,6 @@ class OxyzenApp {
     return tracks.map(t => this.registerTrack(t)).filter(Boolean);
   }
 
-  findTrackById(id) {
-    if (!id) return null;
-    return this.trackRegistry.get(String(id)) || null;
-  }
-
   decodeHTML(str) {
     if (!str || typeof str !== 'string') return '';
     return str
@@ -200,7 +192,7 @@ class OxyzenApp {
   // EVENT LISTENERS INITIALIZATION
   // -------------------------------------------------------------
   initEventListeners() {
-    // 1. Navigation clicks (Desktop Sidebar & Mobile Bottom Navigation)
+    // 1. Navigation clicks (Desktop Sidebar & Mobile Bottom Navigation Bar)
     this.navItems.forEach(item => {
       item.addEventListener("click", () => {
         const view = item.dataset.view;
@@ -272,8 +264,10 @@ class OxyzenApp {
       if (syncPlayBtn) syncPlayBtn.innerHTML = "❚❚";
 
       if (this.playerThumb) this.playerThumb.classList.add("spinning");
+      const overlay = document.getElementById("cinema-mode-overlay");
+      if (overlay) overlay.classList.add("is-playing");
       const vinylDisc = document.getElementById("cinema-vinyl-disc");
-      if (vinylDisc) vinylDisc.style.transform = "translateX(50px)";
+      if (vinylDisc) vinylDisc.classList.add("spinning");
       
       this.updateActiveRowHighlight();
       if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
@@ -288,8 +282,10 @@ class OxyzenApp {
       if (syncPlayBtn) syncPlayBtn.innerHTML = "▶";
 
       if (this.playerThumb) this.playerThumb.classList.remove("spinning");
+      const overlay = document.getElementById("cinema-mode-overlay");
+      if (overlay) overlay.classList.remove("is-playing");
       const vinylDisc = document.getElementById("cinema-vinyl-disc");
-      if (vinylDisc) vinylDisc.style.transform = "translateX(0px)";
+      if (vinylDisc) vinylDisc.classList.remove("spinning");
 
       if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
         this.sync.broadcastPlayState(false, this.audio.audio.currentTime);
@@ -552,6 +548,12 @@ class OxyzenApp {
       this.cinemaSpatialBtn.addEventListener("click", () => this.toggle8DMode());
     }
 
+    // Mobile Pull Handle to dismiss Cinema mode
+    const drawerHandle = document.getElementById("mobile-drawer-handle-bar");
+    if (drawerHandle) {
+      drawerHandle.addEventListener("click", () => this.toggleCinemaMode(false));
+    }
+
     // Panels & Modals
     if (this.lyricsToggleBtn) {
       this.lyricsToggleBtn.addEventListener("click", () => {
@@ -646,11 +648,7 @@ class OxyzenApp {
         }
       }
 
-      // Fetch explore feed
-      const exploreRes = await fetch(`${API_BASE}/api/explore`).then(r => r.json()).catch(() => ({}));
-      if (exploreRes && exploreRes.sections) {
-        this.renderExploreFeed(exploreRes);
-      }
+      this.refreshPersonalizedSections();
     } catch (err) {
       console.warn("Error loading initial data:", err);
     }
@@ -665,17 +663,15 @@ class OxyzenApp {
       const data = await res.json();
       if (data && data.profile) {
         this.userProfile = { ...this.userProfile, ...data.profile };
-        this.updateProfileUI();
       }
-    } catch (e) {
-      this.updateProfileUI();
-    }
+    } catch (e) {}
+    this.updateProfileUI();
   }
 
   updateProfileUI() {
     const avatar = this.userProfile.avatar || "👑";
     const name = this.userProfile.name || "Oxyzen Listener";
-    const langs = this.userProfile.languages || ["English", "Telugu", "Hindi"];
+    const langs = this.userProfile.languages || ["Telugu", "Hindi", "English"];
 
     // Sidebar
     const sideAvatar = document.getElementById("sidebar-user-avatar");
@@ -697,100 +693,19 @@ class OxyzenApp {
       moodSub.innerText = `Curated emotional albums tailored to your preferred languages (${langs.join(", ")})`;
     }
 
-    // Profile Modal inputs
-    const modalAvatar = document.getElementById("profile-modal-avatar-preview");
-    const nameInput = document.getElementById("profile-name-input");
-    if (modalAvatar) modalAvatar.innerText = avatar;
-    if (nameInput) nameInput.value = name;
-
-    document.querySelectorAll(".lang-chip").forEach(chip => {
-      chip.classList.toggle("active", langs.includes(chip.dataset.lang));
-    });
-
-    const picker = document.getElementById("profile-avatar-picker");
-    if (picker) {
-      picker.querySelectorAll(".profile-avatar-pill, .avatar-option").forEach(opt => {
-        opt.classList.toggle("active", opt.dataset.avatar === avatar);
-      });
-    }
-
     // Sync sound sync profile
     this.sync.setProfile(name, avatar);
   }
 
   setupProfileUI() {
-    const openModal = () => {
-      if (this.profileModal) this.profileModal.classList.add("active");
-      this.fetchProfileStats();
-    };
-
     if (this.profileOpenBtn) this.profileOpenBtn.addEventListener("click", () => this.switchView("profile"));
     if (this.profileSidebarBtn) this.profileSidebarBtn.addEventListener("click", () => this.switchView("profile"));
-    
-    const moodLangBtn = document.getElementById("mood-customize-languages-btn");
-    if (moodLangBtn) moodLangBtn.addEventListener("click", openModal);
-
-    if (this.profileCloseBtn) {
-      this.profileCloseBtn.addEventListener("click", () => {
-        this.profileModal.classList.remove("active");
-      });
-    }
-
-    // Avatar options in profile modal
-    const picker = document.getElementById("profile-avatar-picker");
-    if (picker) {
-      picker.querySelectorAll(".profile-avatar-pill, .avatar-option").forEach(opt => {
-        opt.addEventListener("click", () => {
-          picker.querySelectorAll(".profile-avatar-pill, .avatar-option").forEach(o => o.classList.remove("active"));
-          opt.classList.add("active");
-          const av = opt.dataset.avatar || "👑";
-          this.userProfile.avatar = av;
-          const preview = document.getElementById("profile-modal-avatar-preview");
-          if (preview) preview.innerText = av;
-        });
-      });
-    }
-
-    // Save profile from modal
-    if (this.profileSaveBtn) {
-      this.profileSaveBtn.addEventListener("click", async () => {
-        const nameInput = document.getElementById("profile-name-input");
-        const newName = (nameInput && nameInput.value.trim()) || "Oxyzen Listener";
-        
-        const selectedLangs = [];
-        document.querySelectorAll(".lang-chip.active").forEach(chip => {
-          if (chip.dataset.lang) selectedLangs.push(chip.dataset.lang);
-        });
-
-        this.userProfile.name = newName;
-        this.userProfile.languages = selectedLangs.length > 0 ? selectedLangs : ["English", "Telugu", "Hindi"];
-
-        localStorage.setItem("oxyzen_user_name", this.userProfile.name);
-        localStorage.setItem("oxyzen_user_avatar", this.userProfile.avatar);
-        localStorage.setItem("oxyzen_user_languages", JSON.stringify(this.userProfile.languages));
-
-        this.updateProfileUI();
-        if (this.profileModal) this.profileModal.classList.remove("active");
-        this.showToast(`✨ Preferences saved! Tailored to ${this.userProfile.languages.join(", ")}`);
-
-        // Persist to server
-        fetch(`${API_BASE}/api/user/profile`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(this.userProfile)
-        }).catch(() => {});
-
-        if (this.activeView === "profile") {
-          this.loadProfileView();
-        }
-      });
-    }
   }
 
   loadProfileView() {
     const avatar = this.userProfile.avatar || "👑";
     const name = this.userProfile.name || "Oxyzen Listener";
-    const langs = this.userProfile.languages || ["English", "Telugu", "Hindi"];
+    const langs = this.userProfile.languages || ["Telugu", "Hindi", "English"];
 
     // Profile Page Hero
     const pageAvatar = document.getElementById("page-user-avatar");
@@ -813,12 +728,47 @@ class OxyzenApp {
     if (pageStatPlaylists) pageStatPlaylists.innerText = pls.length;
     if (pageStatSyncs) pageStatSyncs.innerText = this.sync.connected ? `Room: ${this.sync.roomCode}` : "Live";
 
-    // Customize Persona button
-    const customizeBtn = document.getElementById("page-customize-persona-btn");
-    if (customizeBtn) {
-      customizeBtn.onclick = () => {
-        if (this.profileModal) this.profileModal.classList.add("active");
+    // Nickname input on Profile Page
+    const pageNameInput = document.getElementById("page-profile-name-input");
+    const pageSaveNameBtn = document.getElementById("page-save-name-btn");
+    if (pageNameInput) pageNameInput.value = name;
+    if (pageSaveNameBtn && pageNameInput) {
+      pageSaveNameBtn.onclick = () => {
+        const newName = pageNameInput.value.trim() || "Oxyzen Listener";
+        this.userProfile.name = newName;
+        localStorage.setItem("oxyzen_user_name", newName);
+        this.updateProfileUI();
+        this.loadProfileView();
+        this.showToast(`✨ Updated nickname to "${newName}"`);
+        fetch(`${API_BASE}/api/user/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.userProfile)
+        }).catch(() => {});
       };
+    }
+
+    // Avatar selector on Profile Page
+    const pageAvatarPicker = document.getElementById("page-avatar-picker");
+    if (pageAvatarPicker) {
+      pageAvatarPicker.querySelectorAll(".avatar-pill").forEach(pill => {
+        pill.classList.toggle("active", pill.dataset.avatar === avatar);
+        pill.onclick = () => {
+          pageAvatarPicker.querySelectorAll(".avatar-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+          const av = pill.dataset.avatar || "👑";
+          this.userProfile.avatar = av;
+          localStorage.setItem("oxyzen_user_avatar", av);
+          this.updateProfileUI();
+          this.loadProfileView();
+          this.showToast(`✨ Changed avatar to ${av}`);
+          fetch(`${API_BASE}/api/user/profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(this.userProfile)
+          }).catch(() => {});
+        };
+      });
     }
 
     // Top Artists from history
@@ -908,9 +858,15 @@ class OxyzenApp {
           pageLangsGrid.querySelectorAll(".lang-chip.active").forEach(c => {
             if (c.dataset.lang) selected.push(c.dataset.lang);
           });
-          this.userProfile.languages = selected.length > 0 ? selected : ["English", "Telugu", "Hindi"];
+          this.userProfile.languages = selected.length > 0 ? selected : ["Telugu", "Hindi", "English"];
           localStorage.setItem("oxyzen_user_languages", JSON.stringify(this.userProfile.languages));
           this.updateProfileUI();
+          this.showToast(`🌐 Preferred languages updated: ${this.userProfile.languages.join(", ")}`);
+          fetch(`${API_BASE}/api/user/profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(this.userProfile)
+          }).catch(() => {});
         };
       });
     }
@@ -971,8 +927,10 @@ class OxyzenApp {
         });
       });
 
-      // Default load love station
-      if (!this.activeMoodKey) {
+      // Default load active mood station
+      if (this.activeMoodKey) {
+        this.loadMoodStation(this.activeMoodKey);
+      } else {
         this.loadMoodStation("love");
       }
     } catch (e) {
@@ -1088,13 +1046,31 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // EXPLORE FEED
+  // EXPLORE FEED & LIVE ADAPTIVE RESONANCE
   // -------------------------------------------------------------
   async refreshPersonalizedSections() {
     try {
-      const res = await fetch(`${API_BASE}/api/explore`);
+      const history = this.storage.getHistory() || [];
+      const languages = this.userProfile.languages || ["Telugu", "Hindi", "English"];
+      
+      const payload = {
+        languages,
+        history,
+        currentTrack: this.currentTrack ? {
+          id: this.currentTrack.id,
+          title: this.currentTrack.title,
+          artist: this.currentTrack.artist,
+          language: this.currentTrack.language
+        } : undefined
+      };
+
+      const res = await fetch(`${API_BASE}/api/explore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
-      if (data.sections) {
+      if (data && data.sections) {
         this.renderExploreFeed(data);
       }
     } catch (e) {
@@ -1102,11 +1078,54 @@ class OxyzenApp {
     }
   }
 
+  async refreshAdaptiveExploreSection(track) {
+    const container = document.getElementById("explore-adaptive-resonance");
+    if (!container || !track) return;
+
+    try {
+      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'Hindi');
+      const res = await fetch(`${API_BASE}/api/recommendations?video_id=${track.id}&artist=${encodeURIComponent(track.artist)}&title=${encodeURIComponent(track.title)}&language=${lang}`);
+      const data = await res.json();
+      const kindred = this.registerTracks(data.recommendations || []);
+      if (kindred.length === 0) {
+        container.innerHTML = "";
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="feed-section" style="background: linear-gradient(135deg, rgba(245, 197, 66, 0.14) 0%, rgba(14, 14, 20, 0.88) 60%); border: 1.5px solid rgba(245, 197, 66, 0.35); border-radius: var(--radius-lg); padding: 22px 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <div class="section-header" style="margin-bottom: 16px;">
+            <div>
+              <span class="hero-badge" style="margin-bottom: 6px;">✨ LIVE ADAPTIVE RESONANCE</span>
+              <h2 class="section-title" style="font-size: 20px;">Because You Listened to "${this.escapeHTML(track.title)}"</h2>
+              <p class="section-tagline">Kindred acoustic frequencies inspired by ${this.escapeHTML(track.artist)}</p>
+            </div>
+            <span class="brand-tag" style="border-color: var(--gold-accent); color: var(--gold-accent);">AI MATCH</span>
+          </div>
+          <div class="cards-grid">
+            ${kindred.slice(0, 12).map(t => this.renderMusicCardHTML(t)).join("")}
+          </div>
+        </div>
+      `;
+
+      container.querySelectorAll(".music-card").forEach((card, idx) => {
+        card.addEventListener("click", () => {
+          const selected = kindred[idx];
+          if (selected) {
+            this.setQueue(kindred, idx);
+            this.playTrack(selected);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn("Failed to load adaptive explore section:", e);
+    }
+  }
+
   renderExploreFeed(exploreData) {
     const container = document.getElementById("explore-feed-container");
     if (!container || !exploreData.sections) return;
 
-    // Register all tracks in local registry
     exploreData.sections.forEach(sec => {
       const trackList = sec.tracks || sec.items || [];
       if (trackList.length > 0) this.registerTracks(trackList);
@@ -1137,7 +1156,6 @@ class OxyzenApp {
 
     container.innerHTML = html;
 
-    // Attach click listeners with section queue context
     container.querySelectorAll(".feed-section").forEach((secEl) => {
       const sIdx = parseInt(secEl.dataset.sectionIdx, 10);
       const sectionObj = exploreData.sections[sIdx];
@@ -1245,7 +1263,7 @@ class OxyzenApp {
       }
 
       container.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 8px;">
           <div>
             <h2 style="font-size: 22px; font-weight: 800;">Results for "${this.escapeHTML(query)}"</h2>
             <span style="font-size: 13px; color: var(--silver-muted);">${tracks.length} lossless high-fidelity streams</span>
@@ -1382,9 +1400,10 @@ class OxyzenApp {
       body: JSON.stringify(registered)
     }).catch(() => {});
 
-    // Synced lyrics & vibe queue
+    // Synced lyrics & vibe queue & live adaptive explore feed
     this.fetchLyrics(registered);
     this.fetchVibeQueue(registered);
+    this.refreshAdaptiveExploreSection(registered);
 
     // Play in audio engine
     await this.audio.loadAndPlay(registered, startTime);
@@ -1611,7 +1630,6 @@ class OxyzenApp {
     if (activeIdx !== this.activeLyricIndex) {
       this.activeLyricIndex = activeIdx;
       
-      // Update Slide panel
       if (this.lyricsContent) {
         const slideLines = this.lyricsContent.querySelectorAll(".cinema-lyric-line");
         slideLines.forEach((el, idx) => {
@@ -1623,7 +1641,6 @@ class OxyzenApp {
         });
       }
 
-      // Update Cinema Mode
       if (this.cinemaLyrics) {
         const cinemaLines = this.cinemaLyrics.querySelectorAll(".cinema-lyric-line");
         cinemaLines.forEach((el, idx) => {
@@ -1649,7 +1666,8 @@ class OxyzenApp {
   // -------------------------------------------------------------
   async fetchVibeQueue(track) {
     try {
-      const res = await fetch(`${API_BASE}/api/recommendations?video_id=${track.id || track.videoId}&artist=${encodeURIComponent(track.artist)}&title=${encodeURIComponent(track.title)}`);
+      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'hindi');
+      const res = await fetch(`${API_BASE}/api/recommendations?video_id=${track.id || track.videoId}&artist=${encodeURIComponent(track.artist)}&title=${encodeURIComponent(track.title)}&language=${lang}`);
       const data = await res.json();
       this.vibeTracks = this.registerTracks(data.recommendations || []);
       
@@ -1702,38 +1720,56 @@ class OxyzenApp {
     }
 
     const currentThumb = this.currentTrack.image || this.currentTrack.thumbnail || '/static/assets/logo.png';
+    const trackList = this.vibeTracks || [];
 
     container.innerHTML = `
       <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
         <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
-          <img src="${currentThumb}" onerror="this.src='/static/assets/logo.png'" style="width: 110px; height: 110px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(34, 211, 238, 0.35);">
+          <img src="${currentThumb}" onerror="this.src='/static/assets/logo.png'" style="width: 100px; height: 100px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(34, 211, 238, 0.35);">
           <div class="hero-content">
-            <span class="hero-badge" style="color: var(--accent-cyan); border-color: var(--accent-cyan);">✦ AI ACOUSTIC VIBE MATRIX</span>
-            <h1 class="hero-title" style="font-size: 26px;">${this.currentTrack.title}</h1>
-            <p class="hero-desc">${this.currentTrack.artist} • Frequency matched soundscapes and kindred harmonies</p>
-            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
-              <span class="audio-mode-pill" style="border-color: rgba(34, 211, 238, 0.4); color: var(--accent-cyan);">98% Harmonic Match</span>
-              <span class="audio-mode-pill">Energy: Peak Dynamic</span>
-              <span class="audio-mode-pill">320k Lossless Stream</span>
+            <span class="hero-badge" style="color: var(--accent-cyan); border-color: var(--accent-cyan);">✦ AI ACOUSTIC VIBE RADAR</span>
+            <h1 class="hero-title" style="font-size: 26px;">${this.escapeHTML(this.currentTrack.title)}</h1>
+            <p class="hero-desc">${this.escapeHTML(this.currentTrack.artist)} • ${this.currentTrack.album || ''} • Kindred frequency matching in ${this.currentTrack.language || 'Telugu'}</p>
+            <div class="hero-actions" style="margin-top: 14px;">
+              <button class="btn-luxury btn-gold-action" id="vibe-play-all-btn">▶ Play All (${trackList.length} Tracks)</button>
+              <button class="btn-luxury" id="vibe-shuffle-all-btn">🔀 Shuffle Radar</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div style="margin-bottom: 16px; font-size: 16px; font-weight: 700; color: #FFFFFF;">
-        ✦ Kindred Acoustic Recommendations (${(this.vibeTracks || []).length})
+      <div style="margin-bottom: 16px; font-size: 16px; font-weight: 700; color: #FFFFFF; display: flex; justify-content: space-between; align-items: center;">
+        <span>✦ Kindred Soundtracks, Artists & Genre Hits (${trackList.length})</span>
+        <span class="brand-tag" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">98% MATCH</span>
       </div>
 
       <div class="cards-grid">
-        ${(this.vibeTracks || []).map(t => this.renderMusicCardHTML(t)).join("")}
+        ${trackList.map(t => this.renderMusicCardHTML(t)).join("")}
       </div>
     `;
 
+    const playAllBtn = document.getElementById("vibe-play-all-btn");
+    if (playAllBtn && trackList.length > 0) {
+      playAllBtn.onclick = () => {
+        this.setQueue(trackList, 0);
+        this.playTrack(trackList[0]);
+      };
+    }
+
+    const shuffleAllBtn = document.getElementById("vibe-shuffle-all-btn");
+    if (shuffleAllBtn && trackList.length > 0) {
+      shuffleAllBtn.onclick = () => {
+        this.isShuffle = true;
+        this.setQueue(trackList, 0);
+        this.playTrack(trackList[Math.floor(Math.random() * trackList.length)]);
+      };
+    }
+
     container.querySelectorAll(".music-card").forEach((card, idx) => {
       card.addEventListener("click", () => {
-        const track = this.vibeTracks[idx];
+        const track = trackList[idx];
         if (track) {
-          this.setQueue(this.vibeTracks, idx);
+          this.setQueue(trackList, idx);
           this.playTrack(track);
         }
       });
@@ -2262,7 +2298,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // SOUNDSYNC SPACE WITH SONG REQUESTS & CO-HOST ADMINS
+  // SOUNDSYNC SPACE WITH SONG REQUESTS & AUTO-SYNC
   // -------------------------------------------------------------
   setupSoundSyncSpaceUI() {
     // Avatar Selectors
@@ -2367,6 +2403,21 @@ class OxyzenApp {
       });
     }
 
+    // Autoplay Unlock Prompt Banner
+    const autoplayBanner = document.getElementById("sync-autoplay-banner");
+    if (autoplayBanner) {
+      autoplayBanner.onclick = () => {
+        this.audio.ensureContextActive();
+        if (this.currentTrack) {
+          this.audio.play().then(() => {
+            autoplayBanner.style.display = "none";
+          }).catch(() => {});
+        } else {
+          autoplayBanner.style.display = "none";
+        }
+      };
+    }
+
     // In-Room Search & Track Selector
     const inroomSearchInput = document.getElementById("sync-inroom-search-input");
     const inroomSearchBtn = document.getElementById("sync-inroom-search-btn");
@@ -2438,12 +2489,20 @@ class OxyzenApp {
       if (!this.currentTrack || this.currentTrack.id !== reg.id) {
         this.currentTrack = reg;
         this.updatePlayerDockUI(reg);
-        this.audio.loadAndPlay(reg, currentTime);
+        this.audio.loadAndPlay(reg, currentTime).catch(() => {
+          const banner = document.getElementById("sync-autoplay-banner");
+          if (banner) banner.style.display = "flex";
+        });
       } else {
-        if (Math.abs(this.audio.audio.currentTime - currentTime) > 1.5) {
+        if (Math.abs(this.audio.audio.currentTime - currentTime) > 0.8) {
           this.audio.seek(currentTime);
         }
-        if (isPlaying && !this.audio.isPlaying) this.audio.play();
+        if (isPlaying && !this.audio.isPlaying) {
+          this.audio.play().catch(() => {
+            const banner = document.getElementById("sync-autoplay-banner");
+            if (banner) banner.style.display = "flex";
+          });
+        }
       }
       if (triggeredBy) {
         this.appendSystemNotice(`▶ Playing "${reg.title}"`);
@@ -2453,11 +2512,14 @@ class OxyzenApp {
 
     window.addEventListener("oxyzen:sync_play_state", (e) => {
       const { isPlaying, currentTime } = e.detail;
-      if (Math.abs(this.audio.audio.currentTime - currentTime) > 1.5) {
+      if (Math.abs(this.audio.audio.currentTime - currentTime) > 0.8) {
         this.audio.seek(currentTime);
       }
       if (isPlaying) {
-        this.audio.play();
+        this.audio.play().catch(() => {
+          const banner = document.getElementById("sync-autoplay-banner");
+          if (banner) banner.style.display = "flex";
+        });
       } else {
         this.audio.pause();
       }
@@ -2602,7 +2664,7 @@ class OxyzenApp {
     }
 
     list.innerHTML = requests.map(r => `
-      <div class="sync-request-item" data-req-id="${r.id}">
+      <div class="sync-request-item" data-req-id="${r.id}" style="display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 6px;">
         <img src="${r.track.image || r.track.thumbnail || '/static/assets/logo.png'}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;">
         <div style="flex: 1; min-width: 0;">
           <div style="font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.track.title}</div>
@@ -2801,10 +2863,19 @@ class OxyzenApp {
     const el = document.createElement("div");
     el.className = "floating-reaction";
     el.innerText = emoji;
+    el.style.position = "fixed";
+    el.style.fontSize = "28px";
+    el.style.pointerEvents = "none";
+    el.style.zIndex = "99999";
     el.style.left = `${Math.random() * 70 + 15}vw`;
     el.style.bottom = "120px";
+    el.style.transition = "transform 1.8s ease-out, opacity 1.8s ease-out";
     document.body.appendChild(el);
-    setTimeout(() => el.remove(), 2000);
+    setTimeout(() => {
+      el.style.transform = `translateY(-180px) scale(1.4)`;
+      el.style.opacity = "0";
+    }, 20);
+    setTimeout(() => el.remove(), 1900);
   }
 
   // -------------------------------------------------------------
@@ -2932,7 +3003,6 @@ class OxyzenApp {
       } else if (e.code === "Escape") {
         this.toggleCinemaMode(false);
         if (this.eqModal) this.eqModal.classList.remove("active");
-        if (this.profileModal) this.profileModal.classList.remove("active");
         if (this.lyricsPanel) this.lyricsPanel.classList.remove("open");
         if (this.queuePanel) this.queuePanel.classList.remove("open");
       }

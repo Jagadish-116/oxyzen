@@ -425,9 +425,45 @@ app.get('/api/charts', async (c) => {
   return c.json({ charts });
 });
 
-app.get('/api/explore', async (c) => {
-  const profile = getUserListeningProfile();
-  const feed = await getExploreFeed(profile);
+app.all('/api/explore', async (c) => {
+  let profile = getUserListeningProfile();
+  let currentTrack: any = undefined;
+  let customHistory: any[] | undefined = undefined;
+
+  if (c.req.method === 'POST') {
+    try {
+      const body: any = await c.req.json();
+      if (body.languages && Array.isArray(body.languages)) {
+        profile.languages = body.languages;
+      }
+      if (body.history && Array.isArray(body.history)) {
+        customHistory = body.history;
+      }
+      if (body.currentTrack) {
+        currentTrack = body.currentTrack;
+      }
+    } catch (e) {}
+  } else {
+    const langsParam = c.req.query('languages');
+    if (langsParam) {
+      profile.languages = langsParam.split(',').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+    }
+    const currentTrackTitle = c.req.query('current_track_title');
+    if (currentTrackTitle) {
+      currentTrack = {
+        id: c.req.query('current_track_id'),
+        title: currentTrackTitle,
+        artist: c.req.query('current_track_artist'),
+        language: c.req.query('current_track_lang')
+      };
+    }
+  }
+
+  if (customHistory && customHistory.length > 0) {
+    profile.history = customHistory;
+  }
+
+  const feed = await getExploreFeed(profile, currentTrack);
   return c.json(feed);
 });
 
@@ -460,8 +496,9 @@ app.get('/api/recommendations', async (c) => {
   const songId = c.req.query('video_id') || c.req.query('song_id') || c.req.query('id');
   const artist = c.req.query('artist');
   const title = c.req.query('title');
+  const language = c.req.query('language') || c.req.query('lang');
 
-  const recommendations = await getVibeRecommendations(songId, artist, title);
+  const recommendations = await getVibeRecommendations(songId, artist, title, language);
   return c.json({ recommendations });
 });
 

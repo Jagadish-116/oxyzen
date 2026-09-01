@@ -1,197 +1,120 @@
 /**
- * OXYZEN MASTER CONTROLLER
- * Unchained Luxury Music Application
+ * OXYZEN MUSIC PLATFORM - MASTER CONTROLLER 2.0
+ * Pure Unchained High-Fidelity Audio Engine Powered by Hono + JioSaavn API
+ * Features: Direct 320kbps Akamai CDN Playback, Real-time SoundSync WebSockets,
+ * Studio Synchronized Lyrics, 10-Band EQ, 8D Spatial Audio, Multilingual Mood Hubs,
+ * AI Vibe Radar, Living Dynamic Aurora Mesh Ambient Mode, and Luxury Audiophile Profile.
  */
 
-const API_BASE = "";
+const API_BASE = window.location.origin;
 
 class OxyzenApp {
   constructor() {
     this.audio = window.oxyzenAudio;
+    this.storage = window.oxyzenStorage;
     this.sync = window.oxyzenSync;
-    this.storage = window.oxyzenStorage || new OxyzenStorage();
 
-    // Track Registry / Cache (Solves explore feed, search, and vibe radar lookup)
-    this.trackCache = new Map();
-
-    // Restore saved settings from local storage
-    const savedSettings = this.storage.getSettings() || {};
-
-    // Playback State
+    // Application State
     this.currentTrack = null;
     this.queue = [];
-    this.queueIndex = -1;
-    this.isShuffle = !!savedSettings.isShuffle;
-    this.repeatMode = savedSettings.repeatMode || "off"; // "off" | "all" | "one"
+    this.queueIndex = 0;
+    this.isShuffle = false;
+    this.repeatMode = "off"; // "off" | "all" | "one"
     this.infiniteRadio = true;
     this.isSeeking = false;
-    this.vibeTracks = [];
-
-    // Library State (Loaded directly from client-side database)
-    this.likedIds = this.storage.getLikedIds();
-    this.playlists = this.storage.getPlaylists();
-    this.currentPlaylistId = null;
-
-    // User Profile & Preferences State
-    this.userProfile = {
-      name: localStorage.getItem("oxyzen_user_name") || "Oxyzen Listener",
-      avatar: localStorage.getItem("oxyzen_user_avatar") || "👑",
-      bio: "Breathing the music in high fidelity",
-      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["English", "Telugu", "Hindi"]'),
-      audio_quality: "Master 320k"
-    };
-
-    // View State
+    this.trackRegistry = new Map(); // Global O(1) track lookup
+    this.likedIds = new Set();
+    this.playlists = [];
     this.activeView = "explore";
+    this.activeMoodKey = "love";
+    this.lyricsData = { synced: false, lines: [], plain: "" };
+    this.activeLyricIndex = -1;
+    this.vibeTracks = [];
     this.searchQuery = "";
     this.searchFilter = null;
     this.searchDebounceTimer = null;
-    this.activeMoodKey = null;
-
-    // Lyrics State
-    this.lyricsData = { synced: false, lines: [], plain: "" };
-    this.activeLyricIndex = -1;
-
-    // SoundSync Profile State
     this.selectedHostAvatar = "👑";
     this.selectedListenerAvatar = "🎧";
 
-    // DOM Elements & Initialization
-    this.initDOMElements();
+    this.userProfile = {
+      name: localStorage.getItem("oxyzen_user_name") || "Oxyzen Listener",
+      avatar: localStorage.getItem("oxyzen_user_avatar") || "👑",
+      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["English", "Telugu", "Hindi"]'),
+      audio_quality: localStorage.getItem("oxyzen_audio_quality") || "320k",
+      theme: localStorage.getItem("oxyzen_theme") || "gold"
+    };
+
+    // Apply saved theme immediately
+    document.body.setAttribute("data-theme", this.userProfile.theme);
+
+    // Initialize UI Cache and Bindings
+    this.cacheDOMElements();
     this.initEventListeners();
+    this.setupSoundSyncSpaceUI();
+    this.setupProfileUI();
+    this.setupEqualizerUI();
+    this.setupKeyboardShortcuts();
+
+    // Load Initial Data
     this.loadInitialData();
   }
 
   // -------------------------------------------------------------
-  // TRACK REGISTRY HELPERS
+  // DOM ELEMENT CACHING
   // -------------------------------------------------------------
-  registerTrack(track) {
-    if (!track) return null;
-    const id = track.id || track.videoId;
-    if (!id) return null;
-    let thumb = track.image || track.thumbnail || "";
-    if (thumb) {
-      thumb = thumb.replace('50x50', '500x500').replace('150x150', '500x500');
-    } else {
-      thumb = "/static/assets/logo.png";
-    }
-    const normalized = {
-      ...track,
-      id: id,
-      videoId: id,
-      title: track.title || "Unknown Track",
-      artist: track.artist || "Unknown Artist",
-      album: track.album || "Oxyzen Audio",
-      thumbnail: thumb,
-      image: thumb,
-      stream_url: track.stream_url || "",
-      downloadUrl: track.downloadUrl || [],
-      duration: track.duration_formatted || track.duration || "3:30",
-      duration_sec: track.duration_sec || track.duration || 210
-    };
-    this.trackCache.set(id, normalized);
-    return normalized;
-  }
-
-  registerTracks(tracksList) {
-    if (!Array.isArray(tracksList)) return [];
-    return tracksList.map(t => this.registerTrack(t)).filter(Boolean);
-  }
-
-  findTrackById(trackId) {
-    if (!trackId) return null;
-    if (this.trackCache.has(trackId)) {
-      return this.trackCache.get(trackId);
-    }
-    const inQueue = this.queue.find(t => (t.id === trackId || t.videoId === trackId));
-    if (inQueue) return inQueue;
-
-    // Resilient DOM fallback
-    const card = document.querySelector(`.music-card[data-track-id="${trackId}"]`);
-    if (card) {
-      const title = card.querySelector('.card-title') ? card.querySelector('.card-title').innerText : 'Track';
-      const artist = card.querySelector('.card-subtitle') ? card.querySelector('.card-subtitle').innerText : 'Artist';
-      const img = card.querySelector('.card-img') ? card.querySelector('.card-img').src : `/static/assets/logo.png`;
-      return this.registerTrack({
-        id: trackId,
-        videoId: trackId,
-        title,
-        artist,
-        thumbnail: img,
-        image: img,
-        duration: "3:30",
-        duration_sec: 210
-      });
-    }
-    return null;
-  }
-
-  // -------------------------------------------------------------
-  // DOM ELEMENT REFERENCES
-  // -------------------------------------------------------------
-  initDOMElements() {
-    // Navigation & Views (Desktop Sidebar & Mobile Bottom Navigation)
+  cacheDOMElements() {
+    // Navigation
     this.navItems = document.querySelectorAll(".nav-item[data-view], .mobile-nav-tab[data-view]");
     this.pageViews = document.querySelectorAll(".page-view");
 
-    // Search Elements
+    // Topbar Search & Suggestions
     this.searchInput = document.getElementById("search-input");
     this.searchClearBtn = document.getElementById("search-clear");
-    this.suggestionsBox = document.getElementById("search-suggestions");
+    this.searchSuggestionsDropdown = document.getElementById("search-suggestions");
     this.searchFilterChips = document.querySelectorAll(".search-filter-chip");
 
     // Player Dock
     this.playerDock = document.getElementById("player-dock");
+    this.playerThumb = document.getElementById("player-thumb");
+    this.playerTitle = document.getElementById("player-title");
+    this.playerArtist = document.getElementById("player-artist");
     this.playPauseBtn = document.getElementById("play-pause-btn");
     this.prevBtn = document.getElementById("prev-btn");
     this.nextBtn = document.getElementById("next-btn");
     this.shuffleBtn = document.getElementById("shuffle-btn");
     this.repeatBtn = document.getElementById("repeat-btn");
-    this.spatial8DBtn = document.getElementById("spatial-8d-btn");
-
     this.seekSlider = document.getElementById("seek-slider");
     this.currentTimeLabel = document.getElementById("current-time-label");
     this.totalTimeLabel = document.getElementById("total-time-label");
-
-    this.playerThumb = document.getElementById("player-thumb");
-    this.playerTitle = document.getElementById("player-title");
-    this.playerArtist = document.getElementById("player-artist");
-    this.playerLikeBtn = document.getElementById("player-like-btn");
     this.volumeSlider = document.getElementById("volume-slider");
     this.volumeIcon = document.getElementById("volume-icon");
+    this.playerLikeBtn = document.getElementById("player-like-btn");
+    this.spatial8DBtn = document.getElementById("spatial-8d-btn");
 
-    // Canvases
-    this.dockCanvas = document.getElementById("dock-visualizer-canvas");
-    this.cinemaCanvas = document.getElementById("cinema-visualizer-canvas");
-    if (this.dockCanvas && this.cinemaCanvas && this.audio) {
-      this.audio.setVisualizerCanvases(this.dockCanvas, this.cinemaCanvas);
-    }
-
-    // Cinema Overlay Elements & Mobile Drawer
+    // Cinema Mode / Mobile Now Playing Drawer
     this.cinemaOverlay = document.getElementById("cinema-mode-overlay");
-    this.cinemaBackdrop = document.getElementById("cinema-backdrop");
+    this.cinemaToggleBtn = document.getElementById("cinema-toggle-btn");
+    this.cinemaCloseBtn = document.getElementById("cinema-close-btn");
     this.cinemaArt = document.getElementById("cinema-art");
     this.cinemaTitle = document.getElementById("cinema-title");
     this.cinemaArtist = document.getElementById("cinema-artist");
-    this.cinemaLyrics = document.getElementById("cinema-lyrics");
-    this.cinemaCloseBtn = document.getElementById("cinema-close-btn");
-    this.cinemaToggleBtn = document.getElementById("cinema-toggle-btn");
-    this.cinemaFullscreenBtn = document.getElementById("cinema-fullscreen-btn");
+    this.cinemaBackdrop = document.getElementById("cinema-backdrop");
     this.cinemaSeekSlider = document.getElementById("cinema-seek-slider");
     this.cinemaCurrentTime = document.getElementById("cinema-current-time");
     this.cinemaTotalTime = document.getElementById("cinema-total-time");
-    this.cinemaVolumeSlider = document.getElementById("cinema-volume-slider");
-    this.cinemaLikeBtn = document.getElementById("cinema-like-btn");
-    this.cinemaSpatialBtn = document.getElementById("cinema-spatial-btn");
-    this.cinemaShuffleBtn = document.getElementById("cinema-shuffle-btn");
-    this.cinemaRepeatBtn = document.getElementById("cinema-repeat-btn");
+    this.cinemaPlayPauseBtn = document.getElementById("cinema-play-pause-btn");
     this.cinemaPrevBtn = document.getElementById("cinema-prev-btn");
     this.cinemaNextBtn = document.getElementById("cinema-next-btn");
-    this.cinemaPlayPauseBtn = document.getElementById("cinema-play-pause-btn");
+    this.cinemaShuffleBtn = document.getElementById("cinema-shuffle-btn");
+    this.cinemaRepeatBtn = document.getElementById("cinema-repeat-btn");
+    this.cinemaLikeBtn = document.getElementById("cinema-like-btn");
+    this.cinemaSpatialBtn = document.getElementById("cinema-spatial-btn");
+    this.cinemaVolumeSlider = document.getElementById("cinema-volume-slider");
+    this.cinemaLyrics = document.getElementById("cinema-lyrics");
+    this.cinemaFullscreenBtn = document.getElementById("cinema-fullscreen-btn");
     this.cinemaLyricsToggleBtn = document.getElementById("cinema-lyrics-toggle-btn");
-    this.mobileDrawerHandle = document.getElementById("mobile-drawer-handle-bar");
 
-    // Slide Panels & Modals
+    // Slide-over Panels & Modals
     this.lyricsPanel = document.getElementById("lyrics-slide-panel");
     this.lyricsToggleBtn = document.getElementById("lyrics-toggle-btn");
     this.lyricsCloseBtn = document.getElementById("lyrics-close-btn");
@@ -213,6 +136,64 @@ class OxyzenApp {
     this.profileSidebarBtn = document.getElementById("sidebar-user-profile-btn");
     this.profileCloseBtn = document.getElementById("profile-close-btn");
     this.profileSaveBtn = document.getElementById("profile-save-btn");
+  }
+
+  // -------------------------------------------------------------
+  // TRACK REGISTRY & NORMALIZATION
+  // -------------------------------------------------------------
+  registerTrack(track) {
+    if (!track) return null;
+    const id = String(track.id || track.videoId || "");
+    const existing = this.trackRegistry.get(id);
+
+    const thumb = track.image || track.thumbnail || (existing ? (existing.image || existing.thumbnail) : '/static/assets/logo.png');
+    const streamUrl = track.stream_url || track.direct_url || (track.downloadUrl && track.downloadUrl.length > 0 ? track.downloadUrl[track.downloadUrl.length - 1].url : (existing ? existing.stream_url : `/api/stream/${id}`));
+
+    const normalized = {
+      id: id,
+      videoId: id,
+      title: this.decodeHTML(track.title || (existing ? existing.title : 'Unknown Title')),
+      artist: this.decodeHTML(track.artist || (existing ? existing.artist : 'Unknown Artist')),
+      album: this.decodeHTML(track.album || (existing ? existing.album : 'Oxyzen Audio')),
+      image: thumb,
+      thumbnail: thumb,
+      duration: track.duration_sec || track.duration || (existing ? existing.duration : 210),
+      duration_sec: track.duration_sec || track.duration || (existing ? existing.duration_sec : 210),
+      duration_formatted: track.duration_formatted || this.formatTime(track.duration_sec || track.duration || 210),
+      downloadUrl: track.downloadUrl || (existing ? existing.downloadUrl : []),
+      stream_url: streamUrl,
+      direct_url: streamUrl,
+      language: track.language || (existing ? existing.language : 'hindi'),
+      year: track.year || (existing ? existing.year : ''),
+      has_lyrics: track.has_lyrics ?? (existing ? existing.has_lyrics : true)
+    };
+
+    this.trackRegistry.set(id, normalized);
+    return normalized;
+  }
+
+  registerTracks(tracks) {
+    if (!Array.isArray(tracks)) return [];
+    return tracks.map(t => this.registerTrack(t)).filter(Boolean);
+  }
+
+  findTrackById(id) {
+    if (!id) return null;
+    return this.trackRegistry.get(String(id)) || null;
+  }
+
+  decodeHTML(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#039;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+      .trim();
   }
 
   // -------------------------------------------------------------
@@ -271,7 +252,7 @@ class OxyzenApp {
       });
     }
 
-    // Filter Chips
+    // Search Filter Chips
     this.searchFilterChips.forEach(chip => {
       chip.addEventListener("click", () => {
         this.searchFilterChips.forEach(c => c.classList.remove("active"));
@@ -286,8 +267,7 @@ class OxyzenApp {
     // 3. Audio Engine Event Listeners
     window.addEventListener("oxyzen:play", () => {
       if (this.playPauseBtn) this.playPauseBtn.innerHTML = "❚❚";
-      const cinemaPlayBtn = document.getElementById("cinema-play-pause-btn");
-      if (cinemaPlayBtn) cinemaPlayBtn.innerHTML = "❚❚";
+      if (this.cinemaPlayPauseBtn) this.cinemaPlayPauseBtn.innerHTML = "❚❚";
       const syncPlayBtn = document.getElementById("sync-ctrl-play");
       if (syncPlayBtn) syncPlayBtn.innerHTML = "❚❚";
 
@@ -296,15 +276,14 @@ class OxyzenApp {
       if (vinylDisc) vinylDisc.style.transform = "translateX(50px)";
       
       this.updateActiveRowHighlight();
-      if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin)) {
+      if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
         this.sync.broadcastPlayState(true, this.audio.audio.currentTime);
       }
     });
 
     window.addEventListener("oxyzen:pause", () => {
       if (this.playPauseBtn) this.playPauseBtn.innerHTML = "▶";
-      const cinemaPlayBtn = document.getElementById("cinema-play-pause-btn");
-      if (cinemaPlayBtn) cinemaPlayBtn.innerHTML = "▶";
+      if (this.cinemaPlayPauseBtn) this.cinemaPlayPauseBtn.innerHTML = "▶";
       const syncPlayBtn = document.getElementById("sync-ctrl-play");
       if (syncPlayBtn) syncPlayBtn.innerHTML = "▶";
 
@@ -312,7 +291,7 @@ class OxyzenApp {
       const vinylDisc = document.getElementById("cinema-vinyl-disc");
       if (vinylDisc) vinylDisc.style.transform = "translateX(0px)";
 
-      if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin)) {
+      if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
         this.sync.broadcastPlayState(false, this.audio.audio.currentTime);
       }
     });
@@ -349,7 +328,7 @@ class OxyzenApp {
         const syncTotalTime = document.getElementById("sync-total-time");
         if (syncTotalTime && dur > 0) syncTotalTime.innerText = this.formatTime(dur);
 
-        // Sync active lyrics line (locked internal scroll)
+        // Synchronized Lyrics Line Highlighting
         this.updateActiveLyricLine(cur);
       }
     });
@@ -358,86 +337,48 @@ class OxyzenApp {
       this.handleTrackEnded();
     });
 
-    // Resilient Audio Stream Recovery & Auto-Skip
-    window.addEventListener("oxyzen:stream_failed", (e) => {
-      const track = (e.detail && e.detail.track) || this.currentTrack;
-      const title = (track && track.title) || "Audio track";
-      this.showToast(`⚠️ "${title}" stream unavailable. Skipping in 3s...`);
-      if (this.streamFailTimer) clearTimeout(this.streamFailTimer);
-      this.streamFailTimer = setTimeout(() => {
-        this.playNext();
-      }, 3000);
+    // 4. Player Dock Transport Controls
+    if (this.playPauseBtn) this.playPauseBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.togglePlayPause();
     });
-
-    // Local Storage Synchronizer Event
-    window.addEventListener("oxyzen:storage_updated", (e) => {
-      const { type } = e.detail || {};
-      if (type === "likes") {
-        this.likedIds = this.storage.getLikedIds();
-        this.updateLikesBadge(this.likedIds.size);
-        if (this.activeView === "liked") this.loadLikedView();
-      } else if (type === "playlists") {
-        this.playlists = this.storage.getPlaylists();
-        this.updatePlaylistsBadge(this.playlists.length);
-        if (this.activeView === "playlists") this.loadPlaylistsView();
-      } else if (type === "history") {
-        if (this.activeView === "history") this.loadHistoryView();
-      } else if (type === "imported") {
-        this.likedIds = this.storage.getLikedIds();
-        this.playlists = this.storage.getPlaylists();
-        this.updateLikesBadge(this.likedIds.size);
-        this.updatePlaylistsBadge(this.playlists.length);
-        this.loadUserProfile();
-        if (this.activeView === "liked") this.loadLikedView();
-        if (this.activeView === "playlists") this.loadPlaylistsView();
-        if (this.activeView === "history") this.loadHistoryView();
-      }
+    if (this.prevBtn) this.prevBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.playPrevious();
     });
-
-    window.addEventListener("oxyzen:next", () => this.playNext());
-    window.addEventListener("oxyzen:prev", () => this.playPrevious());
-
-    // 4. Player Dock Controls
-    if (this.playPauseBtn) this.playPauseBtn.addEventListener("click", () => this.togglePlayPause());
-    if (this.nextBtn) this.nextBtn.addEventListener("click", () => this.playNext());
-    if (this.prevBtn) this.prevBtn.addEventListener("click", () => this.playPrevious());
+    if (this.nextBtn) this.nextBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.playNext();
+    });
 
     if (this.shuffleBtn) {
-      this.shuffleBtn.addEventListener("click", () => {
+      this.shuffleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         this.isShuffle = !this.isShuffle;
         this.shuffleBtn.classList.toggle("active", this.isShuffle);
-        this.storage.saveSettings({ isShuffle: this.isShuffle });
-        this.showToast(this.isShuffle ? "🔀 Shuffle On" : "➡️ Shuffle Off");
+        if (this.cinemaShuffleBtn) this.cinemaShuffleBtn.classList.toggle("active", this.isShuffle);
+        this.showToast(this.isShuffle ? "🔀 Shuffle On" : "🔀 Shuffle Off");
       });
     }
 
     if (this.repeatBtn) {
-      this.repeatBtn.addEventListener("click", () => {
-        if (this.repeatMode === "off") {
-          this.repeatMode = "all";
-          this.repeatBtn.innerHTML = "🔁";
-          this.repeatBtn.classList.add("active");
-          this.showToast("🔁 Repeat All");
-        } else if (this.repeatMode === "all") {
-          this.repeatMode = "one";
-          this.repeatBtn.innerHTML = "🔂";
-          this.repeatBtn.classList.add("active");
-          this.showToast("🔂 Repeat Track");
-        } else {
-          this.repeatMode = "off";
-          this.repeatBtn.innerHTML = "🔁";
-          this.repeatBtn.classList.remove("active");
-          this.showToast("➡️ Repeat Off");
+      this.repeatBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.repeatMode === "off") this.repeatMode = "all";
+        else if (this.repeatMode === "all") this.repeatMode = "one";
+        else this.repeatMode = "off";
+
+        const text = this.repeatMode === "one" ? "🔂" : "🔁";
+        this.repeatBtn.innerHTML = text;
+        this.repeatBtn.classList.toggle("active", this.repeatMode !== "off");
+        if (this.cinemaRepeatBtn) {
+          this.cinemaRepeatBtn.innerHTML = text;
+          this.cinemaRepeatBtn.classList.toggle("active", this.repeatMode !== "off");
         }
-        this.storage.saveSettings({ repeatMode: this.repeatMode });
+        this.showToast(`Repeat: ${this.repeatMode.toUpperCase()}`);
       });
     }
 
-    if (this.spatial8DBtn) {
-      this.spatial8DBtn.addEventListener("click", () => this.toggle8DMode());
-    }
-
-    // Seek Slider Drag Events
     if (this.seekSlider) {
       this.seekSlider.addEventListener("mousedown", () => this.isSeeking = true);
       this.seekSlider.addEventListener("touchstart", () => this.isSeeking = true);
@@ -455,21 +396,17 @@ class OxyzenApp {
         const targetSec = (percent / 100) * dur;
         this.audio.seek(targetSec);
         this.isSeeking = false;
-        if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin)) {
+        if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
           this.sync.broadcastSeek(targetSec);
         }
       });
     }
 
-    // Volume Slider
     if (this.volumeSlider) {
       this.volumeSlider.addEventListener("input", (e) => {
         const val = parseFloat(e.target.value);
         this.audio.setVolume(val);
         this.updateSliderFill(e.target);
-        if (this.volumeIcon) {
-          this.volumeIcon.innerText = val === 0 ? "🔇" : val < 0.5 ? "🔉" : "🔊";
-        }
         if (this.cinemaVolumeSlider) {
           this.cinemaVolumeSlider.value = val;
           this.updateSliderFill(this.cinemaVolumeSlider);
@@ -480,23 +417,29 @@ class OxyzenApp {
     if (this.volumeIcon) {
       this.volumeIcon.addEventListener("click", () => {
         if (this.audio.audio.volume > 0) {
-          this.lastVol = this.audio.audio.volume;
+          this.lastVolume = this.audio.audio.volume;
           this.audio.setVolume(0);
-          this.volumeSlider.value = 0;
+          if (this.volumeSlider) this.volumeSlider.value = 0;
           this.volumeIcon.innerText = "🔇";
         } else {
-          const restore = this.lastVol || 0.8;
+          const restore = this.lastVolume || 0.8;
           this.audio.setVolume(restore);
-          this.volumeSlider.value = restore;
-          this.volumeIcon.innerText = restore < 0.5 ? "🔉" : "🔊";
+          if (this.volumeSlider) this.volumeSlider.value = restore;
+          this.volumeIcon.innerText = "🔊";
         }
-        this.updateSliderFill(this.volumeSlider);
       });
     }
 
-    // Dock Like Button
+    if (this.spatial8DBtn) {
+      this.spatial8DBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggle8DMode();
+      });
+    }
+
     if (this.playerLikeBtn) {
-      this.playerLikeBtn.addEventListener("click", () => {
+      this.playerLikeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (this.currentTrack) {
           this.toggleLikeTrack(this.currentTrack);
         }
@@ -579,7 +522,7 @@ class OxyzenApp {
         const targetSec = (percent / 100) * dur;
         this.audio.seek(targetSec);
         this.isSeeking = false;
-        if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin)) {
+        if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
           this.sync.broadcastSeek(targetSec);
         }
       });
@@ -642,158 +585,10 @@ class OxyzenApp {
         if (e.target === this.eqModal) this.eqModal.classList.remove("active");
       });
     }
-    // Cinema Floating Dock Idle Auto-Hide
-    let cinemaIdleTimer = null;
-    if (this.cinemaOverlay) {
-      const dock = document.getElementById("cinema-floating-dock");
-      this.cinemaOverlay.addEventListener("mousemove", () => {
-        if (dock) dock.classList.remove("idle-hidden");
-        clearTimeout(cinemaIdleTimer);
-        cinemaIdleTimer = setTimeout(() => {
-          if (this.cinemaOverlay && this.cinemaOverlay.classList.contains("active") && dock) {
-            dock.classList.add("idle-hidden");
-          }
-        }, 3800);
-      });
-    }
-
-    // Setup Specific UI Modules
-    this.setupProfileUI();
-    this.setupEqualizerUI();
-    this.setupSoundSyncSpaceUI();
-    this.setupKeyboardShortcuts();
-    this.setupMobileTouchGestures();
   }
 
   // -------------------------------------------------------------
-  // CINEMA MODE & FULL-SCREEN NOW PLAYING DRAWER
-  // -------------------------------------------------------------
-  toggleCinemaMode(open = true) {
-    if (!this.cinemaOverlay) return;
-    if (open) {
-      if (!this.currentTrack && this.queue.length > 0) {
-        this.playTrack(this.queue[0]);
-      }
-      this.cinemaOverlay.classList.add("active");
-      document.body.style.overflow = "hidden";
-      if (this.currentTrack) {
-        this.updatePlayerDockUI(this.currentTrack);
-      }
-    } else {
-      this.cinemaOverlay.classList.remove("active");
-      document.body.style.overflow = "";
-    }
-  }
-
-  // -------------------------------------------------------------
-  // MOBILE TOUCH GESTURES (SWIPE DOWN DISMISS & SWIPE TRACKS)
-  // -------------------------------------------------------------
-  setupMobileTouchGestures() {
-    if (!this.cinemaOverlay) return;
-
-    // 1. Swipe Down to Dismiss Drawer
-    let startY = 0;
-    let startX = 0;
-    let isSwiping = false;
-
-    const handleTouchStart = (e) => {
-      if (e.touches && e.touches.length === 1) {
-        startY = e.touches[0].clientY;
-        startX = e.touches[0].clientX;
-        isSwiping = true;
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      if (!isSwiping || !e.changedTouches || e.changedTouches.length === 0) return;
-      const endY = e.changedTouches[0].clientY;
-      const endX = e.changedTouches[0].clientX;
-      const diffY = endY - startY;
-      const diffX = endX - startX;
-
-      // Downward swipe of > 60px with predominantly vertical motion
-      if (diffY > 60 && Math.abs(diffY) > Math.abs(diffX) * 1.2) {
-        this.toggleCinemaMode(false);
-      }
-      isSwiping = false;
-    };
-
-    const handleBar = document.getElementById("mobile-drawer-handle-bar");
-    const studioHeader = document.querySelector(".ambient-studio-header");
-    if (handleBar) {
-      handleBar.addEventListener("touchstart", handleTouchStart, { passive: true });
-      handleBar.addEventListener("touchend", handleTouchEnd, { passive: true });
-      handleBar.addEventListener("click", () => this.toggleCinemaMode(false));
-    }
-    if (studioHeader) {
-      studioHeader.addEventListener("touchstart", handleTouchStart, { passive: true });
-      studioHeader.addEventListener("touchend", handleTouchEnd, { passive: true });
-    }
-
-    // 2. Swipe Left / Right on Album Turntable Deck to Switch Tracks
-    const deck = document.getElementById("ambient-turntable-deck");
-    if (deck) {
-      let deckStartX = 0;
-      let deckStartY = 0;
-
-      deck.addEventListener("touchstart", (e) => {
-        if (e.touches && e.touches.length === 1) {
-          deckStartX = e.touches[0].clientX;
-          deckStartY = e.touches[0].clientY;
-        }
-      }, { passive: true });
-
-      deck.addEventListener("touchend", (e) => {
-        if (!e.changedTouches || e.changedTouches.length === 0) return;
-        const deckEndX = e.changedTouches[0].clientX;
-        const deckEndY = e.changedTouches[0].clientY;
-        const deltaX = deckEndX - deckStartX;
-        const deltaY = deckEndY - deckStartY;
-
-        // Predominantly horizontal swipe > 45px
-        if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY)) {
-          if (deltaX < 0) {
-            // Swipe Left -> Next Track
-            deck.style.transition = "transform 0.18s ease-out";
-            deck.style.transform = "translateX(-30px)";
-            setTimeout(() => {
-              deck.style.transform = "";
-              this.playNext();
-            }, 180);
-          } else {
-            // Swipe Right -> Previous Track
-            deck.style.transition = "transform 0.18s ease-out";
-            deck.style.transform = "translateX(30px)";
-            setTimeout(() => {
-              deck.style.transform = "";
-              this.playPrevious();
-            }, 180);
-          }
-        }
-      }, { passive: true });
-    }
-  }
-
-  // -------------------------------------------------------------
-  // 8D SPATIAL AUDIO TOGGLE
-  // -------------------------------------------------------------
-  toggle8DMode() {
-    const active = this.audio.toggle8DSpatial();
-    if (this.spatial8DBtn) this.spatial8DBtn.classList.toggle("active", active);
-    if (this.cinemaSpatialBtn) this.cinemaSpatialBtn.classList.toggle("active", active);
-    
-    const pill = document.getElementById("sidebar-profile-pill");
-    if (active) {
-      this.showToast("🎧 8D Spatial Binaural Surround Active");
-      if (pill) pill.innerHTML = '<span class="audio-mode-pulse-dot"></span> 8D Spatial';
-    } else {
-      this.showToast("🎵 Pure Master Hi-Fi Stereo Mode");
-      if (pill) pill.innerHTML = '<span class="audio-mode-pulse-dot"></span> Master Hi-Fi';
-    }
-  }
-
-  // -------------------------------------------------------------
-  // VIEW NAVIGATION
+  // VIEW SWITCHER & SPA NAVIGATION
   // -------------------------------------------------------------
   switchView(viewName) {
     this.activeView = viewName;
@@ -828,10 +623,9 @@ class OxyzenApp {
   // -------------------------------------------------------------
   async loadInitialData() {
     try {
-      // 1. Load Profile & stats
       await this.loadUserProfile();
 
-      // 2. Load from client storage first (Instant, zero latency, 100% offline resilient)
+      // Local storage fast-path
       const localLikes = this.storage.getLikedTracks();
       this.likedIds = new Set(localLikes.map(t => t.id || t.videoId));
       this.updateLikesBadge(localLikes.length);
@@ -852,7 +646,7 @@ class OxyzenApp {
         }
       }
 
-      // 3. Fetch explore feed
+      // Fetch explore feed
       const exploreRes = await fetch(`${API_BASE}/api/explore`).then(r => r.json()).catch(() => ({}));
       if (exploreRes && exploreRes.sections) {
         this.renderExploreFeed(exploreRes);
@@ -863,7 +657,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // USER PROFILE & LANGUAGE PREFERENCES
+  // USER PROFILE & PREFERENCES
   // -------------------------------------------------------------
   async loadUserProfile() {
     try {
@@ -887,26 +681,14 @@ class OxyzenApp {
     const sideAvatar = document.getElementById("sidebar-user-avatar");
     const sideName = document.getElementById("sidebar-user-name");
     const sideLangs = document.getElementById("sidebar-user-langs");
-    if (sideAvatar) {
-      if (avatar.startsWith("http")) {
-        sideAvatar.innerHTML = `<img src="${avatar}" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">`;
-      } else {
-        sideAvatar.innerText = avatar;
-      }
-    }
+    if (sideAvatar) sideAvatar.innerText = avatar;
     if (sideName) sideName.innerText = name;
     if (sideLangs) sideLangs.innerText = langs.map(l => l.slice(0, 2).toUpperCase()).join(" • ");
 
     // Topbar
     const topAvatar = document.getElementById("topbar-avatar");
     const topName = document.getElementById("topbar-username");
-    if (topAvatar) {
-      if (avatar.startsWith("http")) {
-        topAvatar.innerHTML = `<img src="${avatar}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">`;
-      } else {
-        topAvatar.innerText = avatar;
-      }
-    }
+    if (topAvatar) topAvatar.innerText = avatar;
     if (topName) topName.innerText = name.split(" ")[0] || name;
 
     // Moods subtitle
@@ -918,13 +700,7 @@ class OxyzenApp {
     // Profile Modal inputs
     const modalAvatar = document.getElementById("profile-modal-avatar-preview");
     const nameInput = document.getElementById("profile-name-input");
-    if (modalAvatar) {
-      if (avatar.startsWith("http")) {
-        modalAvatar.innerHTML = `<img src="${avatar}" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">`;
-      } else {
-        modalAvatar.innerText = avatar;
-      }
-    }
+    if (modalAvatar) modalAvatar.innerText = avatar;
     if (nameInput) nameInput.value = name;
 
     document.querySelectorAll(".lang-chip").forEach(chip => {
@@ -948,8 +724,8 @@ class OxyzenApp {
       this.fetchProfileStats();
     };
 
-    if (this.profileOpenBtn) this.profileOpenBtn.addEventListener("click", openModal);
-    if (this.profileSidebarBtn) this.profileSidebarBtn.addEventListener("click", openModal);
+    if (this.profileOpenBtn) this.profileOpenBtn.addEventListener("click", () => this.switchView("profile"));
+    if (this.profileSidebarBtn) this.profileSidebarBtn.addEventListener("click", () => this.switchView("profile"));
     
     const moodLangBtn = document.getElementById("mood-customize-languages-btn");
     if (moodLangBtn) moodLangBtn.addEventListener("click", openModal);
@@ -975,14 +751,7 @@ class OxyzenApp {
       });
     }
 
-    // Language chips multi-select
-    document.querySelectorAll(".lang-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        chip.classList.toggle("active");
-      });
-    });
-
-    // Save profile
+    // Save profile from modal
     if (this.profileSaveBtn) {
       this.profileSaveBtn.addEventListener("click", async () => {
         const nameInput = document.getElementById("profile-name-input");
@@ -993,12 +762,8 @@ class OxyzenApp {
           if (chip.dataset.lang) selectedLangs.push(chip.dataset.lang);
         });
 
-        const qualityOpt = document.querySelector('input[name="audio-quality-opt"]:checked');
-        const quality = qualityOpt ? qualityOpt.value : "Master 320k";
-
         this.userProfile.name = newName;
         this.userProfile.languages = selectedLangs.length > 0 ? selectedLangs : ["English", "Telugu", "Hindi"];
-        this.userProfile.audio_quality = quality;
 
         localStorage.setItem("oxyzen_user_name", this.userProfile.name);
         localStorage.setItem("oxyzen_user_avatar", this.userProfile.avatar);
@@ -1015,74 +780,11 @@ class OxyzenApp {
           body: JSON.stringify(this.userProfile)
         }).catch(() => {});
 
-        // If in moods view, reload active mood
-        if (this.activeView === "moods" && this.activeMoodKey) {
-          this.loadMoodStation(this.activeMoodKey);
+        if (this.activeView === "profile") {
+          this.loadProfileView();
         }
       });
     }
-
-    // Backup Export & Import Handlers
-    const exportBtn = document.getElementById("profile-export-backup-btn");
-    if (exportBtn) {
-      exportBtn.addEventListener("click", () => {
-        this.storage.downloadBackupFile();
-        this.showToast("📥 Exported Oxyzen data backup (.json)");
-      });
-    }
-
-    const importBtn = document.getElementById("profile-import-backup-btn");
-    const importFileInput = document.getElementById("profile-import-file-input");
-    if (importBtn && importFileInput) {
-      importBtn.addEventListener("click", () => importFileInput.click());
-      importFileInput.addEventListener("change", (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const content = event.target.result;
-            const res = this.storage.importBackupData(content, "merge");
-            if (res.success) {
-              this.showToast("✨ Data backup restored successfully!");
-              this.loadUserProfile();
-              this.fetchProfileStats();
-            } else {
-              this.showToast(`❌ ${res.message}`);
-            }
-          } catch (err) {
-            this.showToast("❌ Failed to parse backup file");
-          }
-        };
-        reader.readAsText(file);
-        importFileInput.value = "";
-      });
-    }
-  }
-
-  async fetchProfileStats() {
-    const statPlays = document.getElementById("profile-stat-plays");
-    const statLikes = document.getElementById("profile-stat-likes");
-    const statPls = document.getElementById("profile-stat-playlists");
-
-    const history = this.storage.getHistory(100);
-    const likes = this.storage.getLikedTracks();
-    const pls = this.storage.getPlaylists();
-
-    if (statPlays) statPlays.innerText = history.length;
-    if (statLikes) statLikes.innerText = likes.length;
-    if (statPls) statPls.innerText = pls.length;
-
-    try {
-      const res = await fetch(`${API_BASE}/api/user/profile`);
-      const data = await res.json();
-      if (data && data.stats) {
-        if (statPlays && data.stats.total_plays > history.length) {
-          statPlays.innerText = data.stats.total_plays;
-        }
-      }
-    } catch (e) {}
   }
 
   loadProfileView() {
@@ -1090,13 +792,13 @@ class OxyzenApp {
     const name = this.userProfile.name || "Oxyzen Listener";
     const langs = this.userProfile.languages || ["English", "Telugu", "Hindi"];
 
-    // Update Profile Page Hero Elements
+    // Profile Page Hero
     const pageAvatar = document.getElementById("page-user-avatar");
     const pageName = document.getElementById("page-user-name");
     if (pageAvatar) pageAvatar.innerText = avatar;
     if (pageName) pageName.innerText = name;
 
-    // Update Stats on Profile Page
+    // Stats
     const history = this.storage.getHistory(100);
     const likes = this.storage.getLikedTracks();
     const pls = this.storage.getPlaylists();
@@ -1109,18 +811,17 @@ class OxyzenApp {
     if (pageStatPlays) pageStatPlays.innerText = history.length;
     if (pageStatLikes) pageStatLikes.innerText = likes.length;
     if (pageStatPlaylists) pageStatPlaylists.innerText = pls.length;
-    if (pageStatSyncs) pageStatSyncs.innerText = this.sync.connected ? `Room: ${this.sync.roomCode}` : "Idle";
+    if (pageStatSyncs) pageStatSyncs.innerText = this.sync.connected ? `Room: ${this.sync.roomCode}` : "Live";
 
     // Customize Persona button
     const customizeBtn = document.getElementById("page-customize-persona-btn");
     if (customizeBtn) {
       customizeBtn.onclick = () => {
         if (this.profileModal) this.profileModal.classList.add("active");
-        this.fetchProfileStats();
       };
     }
 
-    // Top Artists calculation from history
+    // Top Artists from history
     const artistCounts = {};
     history.forEach(t => {
       if (t.artist) {
@@ -1154,7 +855,7 @@ class OxyzenApp {
       }
     }
 
-    // Quality Selector
+    // Streaming Quality Selector
     const qualitySelector = document.getElementById("page-quality-selector");
     if (qualitySelector) {
       qualitySelector.querySelectorAll(".quality-pill").forEach(pill => {
@@ -1169,7 +870,7 @@ class OxyzenApp {
       });
     }
 
-    // Spatial Audio Toggle
+    // 8D Spatial Audio Switch
     const spatialToggle = document.getElementById("page-spatial-toggle");
     if (spatialToggle) {
       spatialToggle.checked = !!(this.audio && this.audio.is8DActive);
@@ -1178,7 +879,7 @@ class OxyzenApp {
       };
     }
 
-    // Theme Accent Dots
+    // Neon Theme Accent Switcher
     const currentTheme = localStorage.getItem("oxyzen_theme") || "gold";
     document.body.setAttribute("data-theme", currentTheme);
     const themeAccents = document.getElementById("page-theme-accents");
@@ -1191,7 +892,7 @@ class OxyzenApp {
           const theme = dot.dataset.theme || "gold";
           document.body.setAttribute("data-theme", theme);
           localStorage.setItem("oxyzen_theme", theme);
-          this.showToast(`✨ Switched neon lighting theme to ${dot.title}`);
+          this.showToast(`✨ Switched theme to ${dot.title}`);
         };
       });
     }
@@ -1214,7 +915,7 @@ class OxyzenApp {
       });
     }
 
-    // Data Export, Import, Clear History Handlers
+    // Export, Import, Clear History
     const exportBtn = document.getElementById("page-export-backup-btn");
     if (exportBtn) {
       exportBtn.onclick = () => {
@@ -1256,7 +957,7 @@ class OxyzenApp {
       const moods = data.moods || [];
 
       grid.innerHTML = moods.map(m => `
-        <div class="mood-card" data-mood-id="${m.id}" style="border-top: 3px solid ${m.color};">
+        <div class="mood-card" data-mood-id="${m.key || m.id}" style="border-top: 3px solid ${m.color};">
           <span class="mood-card-icon">${m.icon}</span>
           <div class="mood-card-title">${m.name}</div>
           <div class="mood-card-tagline">${m.tagline}</div>
@@ -1270,7 +971,7 @@ class OxyzenApp {
         });
       });
 
-      // If no mood active, load default "feel_good"
+      // Default load love station
       if (!this.activeMoodKey) {
         this.loadMoodStation("love");
       }
@@ -1292,11 +993,12 @@ class OxyzenApp {
 
     const container = document.getElementById("active-mood-playlist-container");
     if (!container) return;
+
     container.style.display = "block";
     container.innerHTML = `
-      <div style="text-align: center; padding: 40px 0; color: var(--silver-muted);">
-        <div style="font-size: 24px; margin-bottom: 8px;">✦</div>
-        <div>Loading high-fidelity mood station for ${this.userProfile.languages.join(", ")}...</div>
+      <div style="text-align: center; padding: 40px; color: var(--silver-muted);">
+        <div class="sync-spinner" style="margin: 0 auto 12px;"></div>
+        <div>Loading Acoustic Mood Station...</div>
       </div>
     `;
 
@@ -1308,16 +1010,16 @@ class OxyzenApp {
       const tracks = this.registerTracks(data.tracks || []);
 
       if (tracks.length === 0) {
-        container.innerHTML = `<div style="color: var(--silver-muted); padding: 40px;">No tracks found for this mood. Try changing preferred languages.</div>`;
+        container.innerHTML = `<div style="color: var(--silver-muted); padding: 40px; text-align: center;">No tracks found for this mood. Try changing preferred languages.</div>`;
         return;
       }
 
       container.innerHTML = `
         <div class="hero-banner" style="background: ${mood.gradient || 'linear-gradient(135deg, rgba(245, 197, 66, 0.2), rgba(17, 17, 21, 0.95))'}; margin-bottom: 24px;">
           <div class="hero-content">
-            <span class="hero-badge" style="color: ${mood.color}; border-color: ${mood.color};">✦ ${mood.icon} ACTIVE MOOD STATION</span>
-            <h1 class="hero-title">${mood.name}</h1>
-            <p class="hero-desc">${mood.tagline} • Tailored for ${this.userProfile.languages.join(", ")} (${tracks.length} tracks)</p>
+            <span class="hero-badge" style="color: ${mood.color}; border-color: ${mood.color};">✦ ${mood.icon || '🎵'} ACTIVE MOOD STATION</span>
+            <h1 class="hero-title">${mood.name || 'Mood Station'}</h1>
+            <p class="hero-desc">${mood.tagline || ''} • Tailored for ${this.userProfile.languages.join(", ")} (${tracks.length} tracks)</p>
             <div class="hero-actions">
               <button class="btn-luxury btn-gold-action" id="mood-play-all-btn">▶ Play All</button>
               <button class="btn-luxury" id="mood-shuffle-all-btn">🔀 Shuffle</button>
@@ -1346,7 +1048,7 @@ class OxyzenApp {
                   </div>
                 </td>
                 <td>${t.album || 'Oxyzen Audio'}</td>
-                <td>${t.duration || '3:30'}</td>
+                <td>${t.duration_formatted || '3:30'}</td>
                 <td style="text-align: right;">
                   <div class="row-actions">
                     <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Save to Liked">
@@ -1406,25 +1108,28 @@ class OxyzenApp {
 
     // Register all tracks in local registry
     exploreData.sections.forEach(sec => {
-      if (sec.tracks) this.registerTracks(sec.tracks);
+      const trackList = sec.tracks || sec.items || [];
+      if (trackList.length > 0) this.registerTracks(trackList);
     });
 
     let html = "";
     exploreData.sections.forEach((section, sIdx) => {
-      const isPersonal = section.is_personalized;
+      const trackList = section.tracks || section.items || [];
+      if (trackList.length === 0) return;
+
       html += `
-        <div class="feed-section ${isPersonal ? 'personalized-section' : ''}" data-section-idx="${sIdx}">
+        <div class="feed-section" data-section-idx="${sIdx}">
           <div class="section-header">
             <div>
               <h2 class="section-title">
-                ${isPersonal ? '✨ ' : ''}${section.title}
+                ${section.title}
               </h2>
-              <p class="section-tagline">${section.tagline}</p>
+              <p class="section-tagline">${section.tagline || section.subtitle || ''}</p>
             </div>
-            <span class="brand-tag" style="border-color: ${section.color}; color: ${section.color}">${section.badge}</span>
+            <span class="brand-tag" style="border-color: ${section.color || '#F5C542'}; color: ${section.color || '#F5C542'}">${section.badge || 'PRO'}</span>
           </div>
           <div class="cards-grid">
-            ${section.tracks.map(t => this.renderMusicCardHTML(t)).join("")}
+            ${trackList.map(t => this.renderMusicCardHTML(t)).join("")}
           </div>
         </div>
       `;
@@ -1433,15 +1138,16 @@ class OxyzenApp {
     container.innerHTML = html;
 
     // Attach click listeners with section queue context
-    container.querySelectorAll(".feed-section").forEach((secEl, sIdx) => {
+    container.querySelectorAll(".feed-section").forEach((secEl) => {
+      const sIdx = parseInt(secEl.dataset.sectionIdx, 10);
       const sectionObj = exploreData.sections[sIdx];
-      if (!sectionObj || !sectionObj.tracks) return;
+      const trackList = sectionObj ? (sectionObj.tracks || sectionObj.items || []) : [];
 
       secEl.querySelectorAll(".music-card").forEach((card, cIdx) => {
         card.addEventListener("click", () => {
-          const track = sectionObj.tracks[cIdx];
+          const track = trackList[cIdx];
           if (track) {
-            this.setQueue(sectionObj.tracks, cIdx);
+            this.setQueue(trackList, cIdx);
             this.playTrack(track);
           }
         });
@@ -1481,130 +1187,133 @@ class OxyzenApp {
   }
 
   renderSuggestions(suggestions) {
-    if (!this.suggestionsBox) return;
-    this.suggestionsBox.innerHTML = suggestions.map(s => `
-      <div class="suggestion-item" data-val="${s}">
+    if (!this.searchSuggestionsDropdown) return;
+    this.searchSuggestionsDropdown.innerHTML = suggestions.map(s => `
+      <div class="suggestion-item">
         <span class="suggestion-icon">🔍</span>
-        <span>${s}</span>
+        <span class="suggestion-text">${this.escapeHTML(s)}</span>
       </div>
     `).join("");
-    this.suggestionsBox.classList.add("active");
 
-    this.suggestionsBox.querySelectorAll(".suggestion-item").forEach(item => {
+    this.searchSuggestionsDropdown.querySelectorAll(".suggestion-item").forEach((item, idx) => {
       item.addEventListener("click", () => {
-        const val = item.dataset.val;
-        this.searchInput.value = val;
+        const text = suggestions[idx];
+        this.searchInput.value = text;
         this.hideSuggestions();
-        this.performSearch(val);
+        this.performSearch(text);
       });
     });
+
+    this.searchSuggestionsDropdown.classList.add("visible");
   }
 
   hideSuggestions() {
-    if (this.suggestionsBox) this.suggestionsBox.classList.remove("active");
+    if (this.searchSuggestionsDropdown) {
+      this.searchSuggestionsDropdown.classList.remove("visible");
+    }
   }
 
   async performSearch(query) {
     this.searchQuery = query;
     this.switchView("search");
 
-    const resultsContainer = document.getElementById("search-results-container");
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
-          <div style="font-size: 28px; margin-bottom: 12px;">✦</div>
-          <div>Unlocking pure high-res audio stream for "${query}"...</div>
-        </div>
-      `;
-    }
-
-    try {
-      let url = `${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=50`;
-      if (this.searchFilter) url += `&filter=${this.searchFilter}`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-      this.renderSearchResults(data);
-    } catch (err) {
-      if (resultsContainer) {
-        resultsContainer.innerHTML = `<div style="color: #EF4444; padding: 40px;">Failed to search: ${err.message}</div>`;
-      }
-    }
-  }
-
-  renderSearchResults(data) {
     const container = document.getElementById("search-results-container");
     if (!container) return;
 
-    const tracks = data.tracks || [];
-    this.registerTracks(tracks);
-
-    if (tracks.length === 0) {
-      container.innerHTML = `
-        <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
-          <div>No tracks found for "${this.searchQuery}". Try another search term.</div>
-        </div>
-      `;
-      return;
-    }
-
-    let html = `
-      <div style="margin-bottom: 24px;">
-        <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">Top Results for "${this.searchQuery}"</h2>
-        <p style="font-size: 13px; color: var(--silver-muted);">${tracks.length} high-fidelity tracks found • Zero Ads</p>
+    container.innerHTML = `
+      <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
+        <div class="sync-spinner" style="margin: 0 auto 16px;"></div>
+        <div style="font-size: 16px; font-weight: 600;">Searching "${this.escapeHTML(query)}"...</div>
       </div>
-      <table class="track-table">
-        <thead>
-          <tr>
-            <th class="row-index-col">#</th>
-            <th>Title</th>
-            <th>Album</th>
-            <th>Duration</th>
-            <th style="text-align: right;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tracks.map((t, idx) => `
-            <tr class="track-row ${this.currentTrack && (this.currentTrack.id === t.id) ? 'active' : ''}" data-track-id="${t.id}">
-              <td class="row-index-col">${idx + 1}</td>
-              <td class="row-track-col">
-                <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
-                <div>
-                  <div class="row-title">${t.title}</div>
-                  <div class="row-artist">${t.artist}</div>
-                </div>
-              </td>
-              <td>${t.album || 'Oxyzen Audio'}</td>
-              <td>${t.duration || '3:30'}</td>
-              <td style="text-align: right;">
-                <div class="row-actions">
-                  <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Save to Liked">
-                    ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
-                  </button>
-                  <button class="btn-row-action" data-action="add-playlist" title="Add to Playlist">📁</button>
-                  <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
-                  <button class="btn-row-action" data-action="download" title="Download High-Res">⬇️</button>
-                </div>
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
     `;
 
-    container.innerHTML = html;
-    this.attachTrackRowEventListeners(container, tracks);
+    try {
+      const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=40`);
+      const data = await res.json();
+      const rawTracks = data.tracks || data.results || [];
+      const tracks = this.registerTracks(rawTracks);
+
+      if (tracks.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
+            <div style="font-size: 36px; margin-bottom: 12px;">🔍</div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--silver-light); margin-bottom: 6px;">No audio matches found for "${this.escapeHTML(query)}"</div>
+            <div>Try searching for another song, artist, album, or genre keyword.</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 800;">Results for "${this.escapeHTML(query)}"</h2>
+            <span style="font-size: 13px; color: var(--silver-muted);">${tracks.length} lossless high-fidelity streams</span>
+          </div>
+          <button class="btn-luxury btn-gold-action" id="search-play-all-btn">▶ Play All</button>
+        </div>
+        <table class="track-table">
+          <thead>
+            <tr>
+              <th class="row-index-col">#</th>
+              <th>Title</th>
+              <th>Album</th>
+              <th>Duration</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tracks.map((t, idx) => `
+              <tr class="track-row ${this.currentTrack && (this.currentTrack.id === t.id) ? 'active' : ''}" data-track-id="${t.id}">
+                <td class="row-index-col">${idx + 1}</td>
+                <td class="row-track-col">
+                  <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
+                  <div>
+                    <div class="row-title">${t.title}</div>
+                    <div class="row-artist">${t.artist}</div>
+                  </div>
+                </td>
+                <td>${t.album || 'Oxyzen Audio'}</td>
+                <td>${t.duration_formatted || '3:30'}</td>
+                <td style="text-align: right;">
+                  <div class="row-actions">
+                    <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Save to Liked">
+                      ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
+                    </button>
+                    <button class="btn-row-action" data-action="add-playlist" title="Add to Playlist">📁</button>
+                    <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
+                    <button class="btn-row-action" data-action="download" title="Download">⬇️</button>
+                  </div>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+
+      this.attachTrackRowEventListeners(container, tracks);
+
+      const playAllBtn = document.getElementById("search-play-all-btn");
+      if (playAllBtn) {
+        playAllBtn.addEventListener("click", () => {
+          this.setQueue(tracks, 0);
+          this.playTrack(tracks[0]);
+        });
+      }
+    } catch (err) {
+      container.innerHTML = `<div style="color: #EF4444; padding: 40px;">Search failed: ${err.message}</div>`;
+    }
   }
 
-  attachTrackRowEventListeners(container, tracksList) {
-    container.querySelectorAll(".track-row").forEach(row => {
+  attachTrackRowEventListeners(container, trackList) {
+    container.querySelectorAll(".track-row").forEach((row, idx) => {
       const trackId = row.dataset.trackId;
-      const trackObj = tracksList.find(t => t.id === trackId) || this.findTrackById(trackId);
+      const trackObj = trackList.find(t => t.id === trackId) || trackList[idx];
 
       row.addEventListener("click", (e) => {
-        if (e.target.closest("button")) return;
+        if (e.target.closest("button") || e.target.closest("a") || e.target.closest(".row-actions")) return;
         if (trackObj) {
-          this.setQueue(tracksList, tracksList.indexOf(trackObj));
+          this.setQueue(trackList, idx);
           this.playTrack(trackObj);
         }
       });
@@ -1652,34 +1361,32 @@ class OxyzenApp {
     this.currentTrack = registered;
     this.updatePlayerDockUI(registered);
 
-    // Save to local device storage history & settings
+    // Save history
     this.storage.addToHistory(registered);
     this.storage.saveSettings({ lastTrack: registered, lastPosition: startTime });
 
-    // If SoundSync lounge is connected and user is host/admin, broadcast to room
-    if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin)) {
+    // SoundSync broadcast
+    if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
       this.sync.broadcastPlayTrack(registered);
     }
 
-    // Prefetch next track in queue for zero-latency gapless feel
+    // Prefetch next track
     if (this.queue.length > this.queueIndex + 1) {
       this.audio.prefetchTrack(this.queue[this.queueIndex + 1]);
     }
 
-    // Log to server history in background
+    // Background server logging
     fetch(`${API_BASE}/api/library/history/add`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(registered)
     }).catch(() => {});
 
-    // Fetch synced lyrics
+    // Synced lyrics & vibe queue
     this.fetchLyrics(registered);
-
-    // Fetch smart recommendations for Vibe Radar and SoundSync space suggestions
     this.fetchVibeQueue(registered);
 
-    // Load & play in Web Audio Engine
+    // Play in audio engine
     await this.audio.loadAndPlay(registered, startTime);
   }
 
@@ -1758,10 +1465,6 @@ class OxyzenApp {
     this.queue.push(reg);
     this.updateQueueBadge();
     this.showToast(`➕ Added "${reg.title}" to queue`);
-
-    if (this.sync.connected) {
-      this.sync.broadcastAddQueue(reg);
-    }
   }
 
   updateQueueBadge() {
@@ -1775,7 +1478,7 @@ class OxyzenApp {
     if (this.playerThumb) this.playerThumb.src = thumb;
     if (this.playerTitle) this.playerTitle.innerText = track.title || "Unknown Track";
     if (this.playerArtist) this.playerArtist.innerText = track.artist || "Unknown Artist";
-    if (this.totalTimeLabel) this.totalTimeLabel.innerText = track.duration || "0:00";
+    if (this.totalTimeLabel) this.totalTimeLabel.innerText = track.duration_formatted || "3:30";
 
     const isLiked = this.likedIds.has(track.id || track.videoId);
     if (this.playerLikeBtn) {
@@ -1802,7 +1505,9 @@ class OxyzenApp {
     const stageArtist = document.getElementById("sync-stage-artist");
     if (stageArt) stageArt.src = thumb;
     if (stageTitle) stageTitle.innerText = track.title || "No Track Playing";
-    if (stageArtist) stageArtist.innerText = track.artist || "Select a song to start the party";
+    if (stageArtist) stageArtist.innerText = track.artist || "Select a song to play";
+
+    this.updateActiveRowHighlight();
   }
 
   updateActiveRowHighlight() {
@@ -1812,7 +1517,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // LYRICS ENGINE (ULTRA-AESTHETIC SYNCED & PLAIN KARAOKE)
+  // LYRICS ENGINE (STUDIO SYNCHRONIZED)
   // -------------------------------------------------------------
   async fetchLyrics(track) {
     this.lyricsData = {
@@ -1833,7 +1538,6 @@ class OxyzenApp {
       if (data && (data.lines && data.lines.length > 0)) {
         this.lyricsData = data;
       } else if (data && data.plain) {
-        // Break plain lyrics into lines with simulated stanzas
         const plainLines = data.plain.split("\n").map(l => l.trim()).filter(l => l.length > 0);
         const dur = track.duration_sec || 180;
         const step = Math.max(dur / Math.max(plainLines.length, 1), 4);
@@ -1919,7 +1623,7 @@ class OxyzenApp {
         });
       }
 
-      // Update Cinema Mode (locked internal scroll container only)
+      // Update Cinema Mode
       if (this.cinemaLyrics) {
         const cinemaLines = this.cinemaLyrics.querySelectorAll(".cinema-lyric-line");
         cinemaLines.forEach((el, idx) => {
@@ -1941,7 +1645,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // VIBE RADAR & MUSIC RECOMMENDATIONS (COVER IMAGE FIX)
+  // VIBE RADAR & MUSIC RECOMMENDATIONS
   // -------------------------------------------------------------
   async fetchVibeQueue(track) {
     try {
@@ -1949,10 +1653,8 @@ class OxyzenApp {
       const data = await res.json();
       this.vibeTracks = this.registerTracks(data.recommendations || []);
       
-      // Update SoundSync suggestions
       this.renderSoundSyncPartySuggestions();
       
-      // If currently on Vibe view, refresh
       if (this.activeView === "vibe") {
         this.loadVibeStationView();
       }
@@ -1967,27 +1669,59 @@ class OxyzenApp {
 
     if (!this.currentTrack) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
-          <div style="font-size: 32px; margin-bottom: 12px;">📡</div>
-          <div style="font-size: 18px; font-weight: 700; color: var(--silver-light); margin-bottom: 6px;">Vibe Radar Matrix</div>
-          <div>Play any song to activate real-time acoustic matching and tailored frequencies.</div>
+        <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
+          <div class="hero-content">
+            <span class="hero-badge" style="color: var(--accent-cyan); border-color: var(--accent-cyan);">✦ AI ACOUSTIC VIBE MATRIX</span>
+            <h1 class="hero-title">Vibe Radar Matrix</h1>
+            <p class="hero-desc">Discover kindred acoustic harmonies, matching BPM frequencies, and AI-predicted music clusters.</p>
+            <div class="hero-actions">
+              <button class="btn-luxury btn-gold-action" id="vibe-launch-trending-btn">🚀 Ignite Radar with Trending Hits</button>
+            </div>
+          </div>
+        </div>
+        <div style="text-align: center; padding: 40px; color: var(--silver-muted);">
+          <div style="font-size: 32px; margin-bottom: 10px;">📡</div>
+          <div>Play any song to activate real-time acoustic matching.</div>
         </div>
       `;
+
+      const launchBtn = document.getElementById("vibe-launch-trending-btn");
+      if (launchBtn) {
+        launchBtn.onclick = async () => {
+          const res = await fetch(`${API_BASE}/api/search?q=Trending%20India%20Hits&limit=20`);
+          const data = await res.json();
+          const tracks = this.registerTracks(data.tracks || data.results || []);
+          if (tracks.length > 0) {
+            this.setQueue(tracks, 0);
+            this.playTrack(tracks[0]);
+            this.loadVibeStationView();
+          }
+        };
+      }
       return;
     }
 
     const currentThumb = this.currentTrack.image || this.currentTrack.thumbnail || '/static/assets/logo.png';
 
     container.innerHTML = `
-      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(17, 17, 21, 0.95)); margin-bottom: 28px;">
-        <div style="display: flex; gap: 24px; align-items: center;">
-          <img src="${currentThumb}" onerror="this.src='/static/assets/logo.png'" style="width: 110px; height: 110px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(34, 211, 238, 0.3);">
+      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
+        <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+          <img src="${currentThumb}" onerror="this.src='/static/assets/logo.png'" style="width: 110px; height: 110px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(34, 211, 238, 0.35);">
           <div class="hero-content">
-            <span class="hero-badge">✦ AI ACOUSTIC VIBE MATRIX</span>
+            <span class="hero-badge" style="color: var(--accent-cyan); border-color: var(--accent-cyan);">✦ AI ACOUSTIC VIBE MATRIX</span>
             <h1 class="hero-title" style="font-size: 26px;">${this.currentTrack.title}</h1>
             <p class="hero-desc">${this.currentTrack.artist} • Frequency matched soundscapes and kindred harmonies</p>
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+              <span class="audio-mode-pill" style="border-color: rgba(34, 211, 238, 0.4); color: var(--accent-cyan);">98% Harmonic Match</span>
+              <span class="audio-mode-pill">Energy: Peak Dynamic</span>
+              <span class="audio-mode-pill">320k Lossless Stream</span>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div style="margin-bottom: 16px; font-size: 16px; font-weight: 700; color: #FFFFFF;">
+        ✦ Kindred Acoustic Recommendations (${(this.vibeTracks || []).length})
       </div>
 
       <div class="cards-grid">
@@ -2007,7 +1741,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // LIKED SONGS & LIBRARY (ZERO-BACKEND CLIENT STORAGE)
+  // LIKED SONGS & LIBRARY
   // -------------------------------------------------------------
   toggleLikeTrack(track, buttonEl = null) {
     if (!track) return;
@@ -2029,7 +1763,6 @@ class OxyzenApp {
     this.updateLikesBadge(this.likedIds.size);
     this.showToast(isLiked ? `❤️ Saved "${track.title}" to Liked` : `🤍 Removed "${track.title}" from Liked`);
 
-    // Optional background sync
     fetch(`${API_BASE}/api/library/likes/toggle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2040,15 +1773,11 @@ class OxyzenApp {
   updateLikesBadge(count) {
     const badge = document.getElementById("likes-badge");
     if (badge) badge.innerText = count;
-    const statLikes = document.getElementById("profile-stat-likes");
-    if (statLikes) statLikes.innerText = count;
   }
 
   updatePlaylistsBadge(count) {
     const badge = document.getElementById("playlists-badge");
     if (badge) badge.innerText = count;
-    const statPl = document.getElementById("profile-stat-playlists");
-    if (statPl) statPl.innerText = count;
   }
 
   loadLikedView() {
@@ -2056,7 +1785,6 @@ class OxyzenApp {
     if (!container) return;
 
     const likes = this.registerTracks(this.storage.getLikedTracks());
-    this.updateLikesBadge(likes.length);
 
     if (likes.length === 0) {
       container.innerHTML = `
@@ -2103,7 +1831,7 @@ class OxyzenApp {
                 </div>
               </td>
               <td>${t.album || 'Oxyzen Audio'}</td>
-              <td>${t.duration || '3:30'}</td>
+              <td>${t.duration_formatted || '3:30'}</td>
               <td style="text-align: right;">
                 <div class="row-actions">
                   <button class="btn-row-action liked" data-action="like" title="Remove Like">❤️</button>
@@ -2164,7 +1892,7 @@ class OxyzenApp {
         </div>
         <div style="display: flex; gap: 8px;">
           <button class="btn-luxury btn-gold-action" id="history-play-all-btn">▶ Play All</button>
-          <button class="btn-luxury" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;" id="clear-history-btn">Clear History</button>
+          <button class="btn-luxury btn-danger-action" id="clear-history-btn">Clear History</button>
         </div>
       </div>
       <table class="track-table">
@@ -2189,7 +1917,7 @@ class OxyzenApp {
                 </div>
               </td>
               <td>${t.album || 'Oxyzen Audio'}</td>
-              <td>${t.duration || '3:30'}</td>
+              <td>${t.duration_formatted || '3:30'}</td>
               <td style="text-align: right;">
                 <div class="row-actions">
                   <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Like">
@@ -2221,38 +1949,30 @@ class OxyzenApp {
       clearBtn.addEventListener("click", () => {
         this.storage.clearHistory();
         this.loadHistoryView();
-        this.showToast("🧹 History cleared");
+        this.showToast("🗑️ Cleared listening history");
       });
     }
   }
 
   // -------------------------------------------------------------
-  // CUSTOM PLAYLISTS (DEVICE-BASED LOCAL DATABASE)
+  // CUSTOM PLAYLISTS
   // -------------------------------------------------------------
   loadPlaylistsView() {
     const container = document.getElementById("playlists-container");
     if (!container) return;
 
     this.playlists = this.storage.getPlaylists();
-    this.updatePlaylistsBadge(this.playlists.length);
 
     let html = `
-      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 21, 0.95)); margin-bottom: 28px;">
-        <div class="hero-content">
-          <span class="hero-badge" style="color: var(--accent-violet); border-color: rgba(168, 85, 247, 0.3);">CUSTOM PLAYLISTS</span>
-          <h1 class="hero-title">My Playlists</h1>
-          <p class="hero-desc">${this.playlists.length} acoustic collections stored locally on this device</p>
-          <div class="hero-actions">
-            <button class="btn-luxury btn-gold-action" id="create-playlist-btn">
-              <span>➕</span>
-              <span>Create New Playlist</span>
-            </button>
-            <button class="btn-luxury" id="playlists-export-btn">
-              <span>📥</span>
-              <span>Export All Playlists (.JSON)</span>
-            </button>
-          </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800;">My Playlists</h2>
+          <p style="font-size: 13px; color: var(--silver-muted);">${this.playlists.length} custom playlists stored on this device</p>
         </div>
+        <button class="btn-luxury btn-gold-action" id="create-new-playlist-btn">
+          <span>➕</span>
+          <span>Create Playlist</span>
+        </button>
       </div>
     `;
 
@@ -2261,56 +1981,40 @@ class OxyzenApp {
         <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
           <div style="font-size: 36px; margin-bottom: 14px;">📁</div>
           <div style="font-size: 20px; font-weight: 700; color: var(--silver-light); margin-bottom: 6px;">No Playlists Created Yet</div>
-          <p style="margin-bottom: 18px;">Create your first playlist and start curating your favorite acoustic frequencies!</p>
-          <button class="btn-luxury btn-gold-action" id="empty-create-playlist-btn">➕ Create Your First Playlist</button>
+          <div>Create your first playlist and start building your personal sanctuary.</div>
         </div>
       `;
     } else {
       html += `
         <div class="cards-grid">
-          ${this.playlists.map(pl => `
-            <div class="music-card playlist-card" data-playlist-id="${pl.id}">
-              <div class="card-img-wrapper">
-                <img class="card-img" src="${pl.cover_url || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
-                <button class="card-play-btn" data-action="play-playlist">▶</button>
+          ${this.playlists.map(pl => {
+            const firstTrack = pl.tracks && pl.tracks[0];
+            const cover = pl.cover_url || (firstTrack ? (firstTrack.image || firstTrack.thumbnail) : '/static/assets/logo.png');
+            return `
+              <div class="playlist-card" data-pl-id="${pl.id}" style="background: rgba(18, 18, 26, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;">
+                <div class="card-img-wrapper" style="position: relative; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 12px;">
+                  <img src="${cover}" onerror="this.src='/static/assets/logo.png'" style="width: 100%; height: 100%; object-fit: cover;">
+                  <button class="card-play-btn">▶</button>
+                </div>
+                <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHTML(pl.name)}</div>
+                <div style="font-size: 12px; color: var(--silver-muted);">${(pl.tracks || []).length} tracks</div>
               </div>
-              <div class="card-title">${this.escapeHTML(pl.name)}</div>
-              <div class="card-subtitle">${(pl.tracks || []).length} tracks • ${this.escapeHTML(pl.description || 'Custom collection')}</div>
-            </div>
-          `).join("")}
+            `;
+          }).join("")}
         </div>
       `;
     }
 
     container.innerHTML = html;
 
-    const createBtn = document.getElementById("create-playlist-btn");
-    if (createBtn) createBtn.addEventListener("click", () => this.openCreatePlaylistModal());
-
-    const emptyCreateBtn = document.getElementById("empty-create-playlist-btn");
-    if (emptyCreateBtn) emptyCreateBtn.addEventListener("click", () => this.openCreatePlaylistModal());
-
-    const expBtn = document.getElementById("playlists-export-btn");
-    if (expBtn) expBtn.addEventListener("click", () => {
-      this.storage.downloadBackupFile();
-      this.showToast("📥 Exported Oxyzen playlists backup (.json)");
-    });
+    const createBtn = document.getElementById("create-new-playlist-btn");
+    if (createBtn) {
+      createBtn.addEventListener("click", () => this.openCreatePlaylistModal());
+    }
 
     container.querySelectorAll(".playlist-card").forEach(card => {
-      const plId = card.dataset.playlistId;
-      const plObj = this.storage.getPlaylist(plId);
-
-      card.addEventListener("click", (e) => {
-        if (e.target.dataset.action === "play-playlist") {
-          e.stopPropagation();
-          if (plObj && plObj.tracks && plObj.tracks.length > 0) {
-            this.setQueue(plObj.tracks, 0);
-            this.playTrack(plObj.tracks[0]);
-          } else {
-            this.showToast("📁 Playlist is empty. Open and add songs!");
-          }
-          return;
-        }
+      card.addEventListener("click", () => {
+        const plId = card.dataset.plId;
         this.loadPlaylistDetailView(plId);
       });
     });
@@ -2318,42 +2022,32 @@ class OxyzenApp {
 
   loadPlaylistDetailView(playlistId) {
     const pl = this.storage.getPlaylist(playlistId);
-    if (!pl) {
-      this.showToast("❌ Playlist not found");
-      this.switchView("playlists");
-      return;
-    }
+    if (!pl) return;
 
-    this.currentPlaylistId = playlistId;
     this.switchView("playlist-detail");
-
     const container = document.getElementById("playlist-detail-container");
     if (!container) return;
 
     const tracks = this.registerTracks(pl.tracks || []);
-    const coverUrl = pl.cover_url || (tracks.length > 0 ? tracks[0].thumbnail : "/static/assets/logo.png");
+    const firstTrack = tracks[0];
+    const cover = pl.cover_url || (firstTrack ? (firstTrack.image || firstTrack.thumbnail) : '/static/assets/logo.png');
 
     let html = `
       <div style="margin-bottom: 20px;">
-        <button class="btn-luxury" id="playlist-back-btn" style="padding: 6px 14px; font-size: 12px; margin-bottom: 16px;">
-          ← Back to Playlists
-        </button>
+        <button class="btn-luxury" id="playlist-back-btn" style="padding: 6px 12px; font-size: 12px;">← Back to Playlists</button>
       </div>
-
-      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(17, 17, 21, 0.95)); margin-bottom: 28px;">
+      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
         <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
-          <img src="${coverUrl}" onerror="this.src='/static/assets/logo.png'" style="width: 120px; height: 120px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 30px rgba(0,0,0,0.8), 0 0 25px rgba(168, 85, 247, 0.3);">
-          <div class="hero-content" style="flex: 1; min-width: 250px;">
-            <span class="hero-badge" style="color: var(--accent-violet); border-color: rgba(168, 85, 247, 0.4);">PLAYLIST</span>
+          <img src="${cover}" onerror="this.src='/static/assets/logo.png'" style="width: 120px; height: 120px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.3);">
+          <div class="hero-content">
+            <span class="hero-badge" style="color: #A855F7; border-color: rgba(168, 85, 247, 0.3);">PLAYLIST</span>
             <h1 class="hero-title" style="font-size: 28px;">${this.escapeHTML(pl.name)}</h1>
-            <p class="hero-desc">${this.escapeHTML(pl.description || 'Custom curation')} • ${tracks.length} tracks</p>
-            <div class="hero-actions" style="margin-top: 14px;">
-              ${tracks.length > 0 ? `
-                <button class="btn-luxury btn-gold-action" id="pl-detail-play-btn">▶ Play All</button>
-                <button class="btn-luxury" id="pl-detail-shuffle-btn">🔀 Shuffle</button>
-              ` : ''}
+            <p class="hero-desc">${this.escapeHTML(pl.description || '')} • ${tracks.length} tracks</p>
+            <div class="hero-actions" style="margin-top: 12px;">
+              <button class="btn-luxury btn-gold-action" id="pl-detail-play-btn">▶ Play All</button>
+              <button class="btn-luxury" id="pl-detail-shuffle-btn">🔀 Shuffle</button>
               <button class="btn-luxury" id="pl-detail-rename-btn">✏️ Rename</button>
-              <button class="btn-luxury" id="pl-detail-delete-btn" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">🗑️ Delete Playlist</button>
+              <button class="btn-luxury btn-danger-action" id="pl-detail-delete-btn">🗑️ Delete</button>
             </div>
           </div>
         </div>
@@ -2392,7 +2086,7 @@ class OxyzenApp {
                   </div>
                 </td>
                 <td>${t.album || 'Oxyzen Audio'}</td>
-                <td>${t.duration || '3:30'}</td>
+                <td>${t.duration_formatted || '3:30'}</td>
                 <td style="text-align: right;">
                   <div class="row-actions">
                     <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Like">
@@ -2571,12 +2265,12 @@ class OxyzenApp {
   // SOUNDSYNC SPACE WITH SONG REQUESTS & CO-HOST ADMINS
   // -------------------------------------------------------------
   setupSoundSyncSpaceUI() {
-    // 1. Avatar Selectors
+    // Avatar Selectors
     const hostPicker = document.getElementById("host-avatar-picker");
     if (hostPicker) {
-      hostPicker.querySelectorAll(".sync-avatar-btn, .avatar-option").forEach(opt => {
+      hostPicker.querySelectorAll(".sync-avatar-btn").forEach(opt => {
         opt.addEventListener("click", () => {
-          hostPicker.querySelectorAll(".sync-avatar-btn, .avatar-option").forEach(o => o.classList.remove("active"));
+          hostPicker.querySelectorAll(".sync-avatar-btn").forEach(o => o.classList.remove("active"));
           opt.classList.add("active");
           this.selectedHostAvatar = opt.dataset.avatar || "👑";
         });
@@ -2585,51 +2279,16 @@ class OxyzenApp {
 
     const listenerPicker = document.getElementById("listener-avatar-picker");
     if (listenerPicker) {
-      listenerPicker.querySelectorAll(".sync-avatar-btn, .avatar-option").forEach(opt => {
+      listenerPicker.querySelectorAll(".sync-avatar-btn").forEach(opt => {
         opt.addEventListener("click", () => {
-          listenerPicker.querySelectorAll(".sync-avatar-btn, .avatar-option").forEach(o => o.classList.remove("active"));
+          listenerPicker.querySelectorAll(".sync-avatar-btn").forEach(o => o.classList.remove("active"));
           opt.classList.add("active");
           this.selectedListenerAvatar = opt.dataset.avatar || "🎧";
         });
       });
     }
 
-    // Real-time room code input formatting & status preview
-    const joinCodeInput = document.getElementById("sync-join-code-input");
-    const codeStatusMsg = document.getElementById("sync-code-status-msg");
-    let checkRoomTimer = null;
-    if (joinCodeInput) {
-      joinCodeInput.addEventListener("input", (e) => {
-        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const val = e.target.value.trim();
-        if (codeStatusMsg) {
-          codeStatusMsg.className = "sync-code-status";
-          codeStatusMsg.innerText = "";
-        }
-        clearTimeout(checkRoomTimer);
-        if (val.length >= 3) {
-          checkRoomTimer = setTimeout(async () => {
-            try {
-              const res = await fetch(`${API_BASE}/api/rooms/${val}`);
-              if (res.ok) {
-                const data = await res.json();
-                if (codeStatusMsg) {
-                  codeStatusMsg.className = "sync-code-status success";
-                  codeStatusMsg.innerText = `✓ Active Lounge: ${data.room_name} (${data.listener_count || 1} online)`;
-                }
-              } else {
-                if (codeStatusMsg) {
-                  codeStatusMsg.className = "sync-code-status error";
-                  codeStatusMsg.innerText = "✕ Lounge not found (invalid code)";
-                }
-              }
-            } catch (err) {}
-          }, 300);
-        }
-      });
-    }
-
-    // 2. Launch Host Lounge
+    // Launch Host Lounge
     const hostLaunchBtn = document.getElementById("sync-host-launch-btn");
     if (hostLaunchBtn) {
       hostLaunchBtn.addEventListener("click", async () => {
@@ -2659,7 +2318,7 @@ class OxyzenApp {
       });
     }
 
-    // 3. Join Listener Lounge (Strictly allow only valid and existing rooms)
+    // Join Listener Lounge
     const joinEnterBtn = document.getElementById("sync-join-enter-btn");
     if (joinEnterBtn) {
       joinEnterBtn.addEventListener("click", async () => {
@@ -2669,45 +2328,26 @@ class OxyzenApp {
         const name = (nameInput && nameInput.value.trim()) || this.userProfile.name || "Listener";
 
         if (!code || code.length < 3) {
-          if (codeInput) {
-            codeInput.focus();
-            codeInput.classList.add("input-error-shake");
-            setTimeout(() => codeInput.classList.remove("input-error-shake"), 500);
-          }
-          if (codeStatusMsg) {
-            codeStatusMsg.className = "sync-code-status error";
-            codeStatusMsg.innerText = "Please enter a valid room code";
-          }
           this.showToast("⚠️ Please enter a valid room code");
           return;
         }
 
-        // VERIFY ROOM EXISTENCE BEFORE CONNECTING
         try {
           const res = await fetch(`${API_BASE}/api/rooms/${code}`);
           if (!res.ok) {
-            if (codeInput) {
-              codeInput.focus();
-              codeInput.classList.add("input-error-shake");
-              setTimeout(() => codeInput.classList.remove("input-error-shake"), 500);
-            }
-            if (codeStatusMsg) {
-              codeStatusMsg.className = "sync-code-status error";
-              codeStatusMsg.innerText = `✕ Lounge "${code}" does not exist or has closed`;
-            }
-            this.showToast(`❌ Lounge "${code}" not found. Please check the code or host a new lounge.`);
+            this.showToast(`❌ Lounge "${code}" not found.`);
             return;
           }
           const roomData = await res.json();
           this.sync.setProfile(name, this.selectedListenerAvatar);
           this.sync.joinRoom(code, roomData.room_name);
         } catch (e) {
-          this.showToast(`❌ Failed to verify lounge "${code}". Please check your network.`);
+          this.showToast(`❌ Failed to connect to room "${code}"`);
         }
       });
     }
 
-    // 4. COPY ROOM CODE ONLY
+    // Copy Code Button
     const copyCodeBtn = document.getElementById("sync-copy-code-btn");
     if (copyCodeBtn) {
       copyCodeBtn.addEventListener("click", () => {
@@ -2717,7 +2357,7 @@ class OxyzenApp {
       });
     }
 
-    // 5. Leave Room
+    // Leave Room Button
     const leaveBtn = document.getElementById("sync-space-leave-btn");
     if (leaveBtn) {
       leaveBtn.addEventListener("click", () => {
@@ -2727,20 +2367,7 @@ class OxyzenApp {
       });
     }
 
-    // 6. Profile Quick Edit in Room
-    const profileEditPill = document.getElementById("sync-profile-edit-pill");
-    if (profileEditPill) {
-      profileEditPill.addEventListener("click", () => {
-        const newName = prompt("Change your display name:", this.sync.userName);
-        if (newName && newName.trim()) {
-          this.sync.setProfile(newName.trim(), this.sync.avatar);
-          this.renderSoundSyncSpace();
-          this.showToast(`✨ Updated nickname to "${newName.trim()}"`);
-        }
-      });
-    }
-
-    // 7. In-Room Search & Track Selector (Supports Play, Queue, and Song Requests)
+    // In-Room Search & Track Selector
     const inroomSearchInput = document.getElementById("sync-inroom-search-input");
     const inroomSearchBtn = document.getElementById("sync-inroom-search-btn");
     if (inroomSearchBtn && inroomSearchInput) {
@@ -2764,7 +2391,7 @@ class OxyzenApp {
       });
     }
 
-    // 8. SoundSync Stage Controls
+    // Stage Controls
     const syncPlayBtn = document.getElementById("sync-ctrl-play");
     if (syncPlayBtn) syncPlayBtn.addEventListener("click", () => this.togglePlayPause());
     const syncNextBtn = document.getElementById("sync-ctrl-next");
@@ -2772,7 +2399,7 @@ class OxyzenApp {
     const syncPrevBtn = document.getElementById("sync-ctrl-prev");
     if (syncPrevBtn) syncPrevBtn.addEventListener("click", () => this.playPrevious());
 
-    // 9. Live Chat Messaging
+    // Live Chat
     const chatForm = document.getElementById("sync-chat-form");
     const chatInput = document.getElementById("sync-chat-input");
     if (chatForm && chatInput) {
@@ -2786,7 +2413,7 @@ class OxyzenApp {
       });
     }
 
-    // 10. Live Floating Emoji Reactions
+    // Floating Reaction Emojis
     document.querySelectorAll(".sync-emoji-bubble").forEach(btn => {
       btn.addEventListener("click", () => {
         const emoji = btn.dataset.emoji || "🔥";
@@ -2795,7 +2422,7 @@ class OxyzenApp {
       });
     });
 
-    // 11. Global WebSocket Event Bindings
+    // Global Sync WebSocket Event Handlers
     window.addEventListener("oxyzen:sync_connected", (e) => {
       this.showToast(`🎧 Connected to SoundSync Lounge ${e.detail.roomCode}`);
       this.renderSoundSyncSpace();
@@ -2819,7 +2446,7 @@ class OxyzenApp {
         if (isPlaying && !this.audio.isPlaying) this.audio.play();
       }
       if (triggeredBy) {
-        this.appendSystemNotice(`▶ Playing "${reg.title}" (Triggered by ${triggeredBy})`);
+        this.appendSystemNotice(`▶ Playing "${reg.title}"`);
       }
       this.renderSoundSyncSpace();
     });
@@ -2846,7 +2473,7 @@ class OxyzenApp {
 
     window.addEventListener("oxyzen:sync_request_added", (e) => {
       const { request, requester } = e.detail;
-      this.appendSystemNotice(`🙋‍♂️ ${requester || 'A listener'} requested "${request.track.title}"`);
+      this.appendSystemNotice(`🙋‍♂️ ${requester ? requester.name : 'A listener'} requested "${request.track.title}"`);
       this.renderSoundSyncRequests();
     });
 
@@ -2881,13 +2508,7 @@ class OxyzenApp {
       this.renderSoundSyncListeners();
     });
 
-    window.addEventListener("oxyzen:sync_host_changed", (e) => {
-      this.appendSystemNotice(`👑 DJ Host changed to ${e.detail.new_host_name}`);
-      this.renderSoundSyncSpace();
-    });
-
-    window.addEventListener("oxyzen:sync_error", (e) => {
-      this.showToast(`❌ ${e.detail.message || "SoundSync Lounge not found"}`);
+    window.addEventListener("oxyzen:sync_host_changed", () => {
       this.renderSoundSyncSpace();
     });
   }
@@ -2909,18 +2530,12 @@ class OxyzenApp {
     const roomCodeBadge = document.getElementById("room-code-badge");
     if (roomCodeBadge) roomCodeBadge.innerText = this.sync.roomCode || "---";
 
-    const roomNameLabel = document.getElementById("room-display-name");
-    if (roomNameLabel) roomNameLabel.innerText = this.sync.roomName || `Lounge ${this.sync.roomCode}`;
+    const roomTitle = document.getElementById("room-display-name");
+    if (roomTitle) roomTitle.innerText = this.sync.roomName || "SoundSync Lounge";
 
-    const hostDisplay = document.getElementById("room-host-display");
-    if (hostDisplay) {
-      if (this.sync.isHost) {
-        hostDisplay.innerHTML = "👑 Host: You (DJ Master)";
-      } else if (this.sync.isAdmin) {
-        hostDisplay.innerHTML = "🛡️ You: Co-Host Admin";
-      } else {
-        hostDisplay.innerHTML = "🎧 Listener";
-      }
+    const hostTag = document.getElementById("room-host-display");
+    if (hostTag) {
+      hostTag.innerText = this.sync.isHost ? "👑 Host: You (DJ Master)" : "👑 Host: Co-Host Active";
     }
 
     const myAvatar = document.getElementById("sync-my-avatar");
@@ -2928,109 +2543,94 @@ class OxyzenApp {
     if (myAvatar) myAvatar.innerText = this.sync.avatar || "🎧";
     if (myName) myName.innerText = this.sync.userName || "You";
 
+    // Role Indicator
     const roleIndicator = document.getElementById("sync-role-indicator");
     if (roleIndicator) {
       if (this.sync.isHost) {
-        roleIndicator.innerHTML = '<span style="color: var(--gold-accent); font-weight: 700;">👑 DJ Host (You control playback & admins)</span>';
+        roleIndicator.innerHTML = `<span>👑 Master DJ (You control playback & queue)</span>`;
       } else if (this.sync.isAdmin) {
-        roleIndicator.innerHTML = '<span style="color: var(--accent-cyan); font-weight: 700;">🛡️ Co-Host Admin (You can control playback & accept requests)</span>';
+        roleIndicator.innerHTML = `<span>🛡️ Co-Host Admin (You can play & manage songs)</span>`;
       } else {
-        roleIndicator.innerHTML = '<span style="color: var(--silver-muted); font-weight: 500;">🎧 Synchronized Live (Listening with Host)</span>';
+        roleIndicator.innerHTML = `<span>🎧 Listener (Request songs to the DJ queue below)</span>`;
       }
     }
 
     this.renderSoundSyncListeners();
     this.renderSoundSyncRequests();
+    this.renderSoundSyncQueue(this.sync.queue || []);
     this.renderSoundSyncPartySuggestions();
   }
 
   renderSoundSyncListeners() {
     const row = document.getElementById("sync-active-listeners-row");
-    const countBadge = document.getElementById("sync-listener-count-badge");
+    const badge = document.getElementById("sync-listener-count-badge");
     if (!row) return;
 
     const listeners = this.sync.listeners || [];
-    if (countBadge) countBadge.innerText = listeners.length;
+    if (badge) badge.innerText = listeners.length;
 
     row.innerHTML = listeners.map(l => {
-      const isMe = (l.user_id === this.sync.userId);
       const isHost = l.is_host;
       const isAdmin = l.is_admin;
+      const isMe = (l.id === this.sync.userId);
+
       return `
-        <div class="sync-listener-bubble ${isHost ? 'host' : isAdmin ? 'admin' : ''}">
-          <span>${isHost ? '👑' : isAdmin ? '🛡️' : l.avatar || '🎧'}</span>
-          <span>${l.name}</span>
-          ${isMe ? '<span style="opacity: 0.6;">(You)</span>' : ''}
-          ${(this.sync.isHost && !isHost && !isMe) ? `
-            <button class="btn-admin-toggle" data-user-id="${l.user_id}" data-is-admin="${isAdmin}" title="${isAdmin ? 'Remove Co-Host Admin' : 'Make Co-Host Admin'}">
-              ${isAdmin ? '🛡️❌' : '🛡️➕'}
-            </button>
-          ` : ''}
+        <div class="sync-listener-chip ${isHost ? 'host' : ''} ${isAdmin ? 'admin' : ''}" data-user-id="${l.id}">
+          <span class="listener-avatar">${l.avatar || '🎧'}</span>
+          <span class="listener-name">${this.escapeHTML(l.name)} ${isMe ? '(You)' : ''}</span>
+          ${isHost ? '<span class="listener-role-badge">HOST</span>' : (isAdmin ? '<span class="listener-role-badge">ADMIN</span>' : '')}
         </div>
       `;
     }).join("");
-
-    if (this.sync.isHost) {
-      row.querySelectorAll(".btn-admin-toggle").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const targetId = btn.dataset.userId;
-          const isCurrentlyAdmin = btn.dataset.isAdmin === "true";
-          if (isCurrentlyAdmin) {
-            this.sync.demoteAdmin(targetId);
-          } else {
-            this.sync.promoteAdmin(targetId);
-          }
-        });
-      });
-    }
   }
 
   renderSoundSyncRequests() {
     const card = document.getElementById("sync-requests-card");
     const list = document.getElementById("sync-requests-list");
-    const count = document.getElementById("sync-requests-count");
+    const countBadge = document.getElementById("sync-requests-count");
+
+    const requests = this.sync.requests || [];
+    if (countBadge) countBadge.innerText = requests.length;
+
     if (!card || !list) return;
 
-    const canManage = (this.sync.isHost || this.sync.isAdmin);
-    const requests = this.sync.requests || [];
-
-    if (count) count.innerText = requests.length;
-
-    if (!canManage || requests.length === 0) {
+    if (this.sync.isHost || this.sync.isAdmin) {
+      card.style.display = requests.length > 0 ? "block" : "none";
+    } else {
       card.style.display = "none";
       return;
     }
 
-    card.style.display = "block";
     list.innerHTML = requests.map(r => `
-      <div class="sync-request-item">
-        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-          <img src="${r.track.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" style="width: 34px; height: 34px; border-radius: 4px; object-fit: cover;">
-          <div style="min-width: 0;">
-            <div style="font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.track.title}</div>
-            <div style="font-size: 11px; color: var(--silver-muted);">Requested by ${r.avatar} ${r.user_name}</div>
-          </div>
+      <div class="sync-request-item" data-req-id="${r.id}">
+        <img src="${r.track.image || r.track.thumbnail || '/static/assets/logo.png'}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;">
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.track.title}</div>
+          <div style="font-size: 11px; color: var(--silver-muted);">Requested by ${this.escapeHTML(r.requester_name || 'Listener')}</div>
         </div>
         <div style="display: flex; gap: 6px;">
-          <button class="btn-luxury btn-gold-action" style="padding: 4px 8px; font-size: 11px;" data-req-id="${r.id}" data-action="play">▶ Play Now</button>
-          <button class="btn-luxury" style="padding: 4px 8px; font-size: 11px;" data-req-id="${r.id}" data-action="queue">➕ Queue</button>
-          <button class="btn-row-action" style="opacity: 1;" data-req-id="${r.id}" data-action="dismiss">✕</button>
+          <button class="btn-luxury btn-gold-action" data-action="accept-play" data-req-id="${r.id}" style="padding: 4px 8px; font-size: 11px;">▶ Play</button>
+          <button class="btn-luxury" data-action="accept-queue" data-req-id="${r.id}" style="padding: 4px 8px; font-size: 11px;">➕ Queue</button>
+          <button class="btn-row-action" data-action="dismiss" data-req-id="${r.id}" style="opacity: 1;">✕</button>
         </div>
       </div>
     `).join("");
 
-    list.querySelectorAll("[data-req-id]").forEach(btn => {
+    list.querySelectorAll('[data-action="accept-play"]').forEach(btn => {
       btn.addEventListener("click", () => {
-        const reqId = btn.dataset.reqId;
-        const act = btn.dataset.action;
-        if (act === "play") {
-          this.sync.acceptRequest(reqId, true);
-        } else if (act === "queue") {
-          this.sync.acceptRequest(reqId, false);
-        } else if (act === "dismiss") {
-          this.sync.dismissRequest(reqId);
-        }
+        this.sync.acceptRequest(btn.dataset.reqId, true);
+      });
+    });
+
+    list.querySelectorAll('[data-action="accept-queue"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        this.sync.acceptRequest(btn.dataset.reqId, false);
+      });
+    });
+
+    list.querySelectorAll('[data-action="dismiss"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        this.sync.dismissRequest(btn.dataset.reqId);
       });
     });
   }
@@ -3038,70 +2638,63 @@ class OxyzenApp {
   renderInroomSearchResults(tracks) {
     const list = document.getElementById("sync-search-results-list");
     if (!list) return;
-    this.registerTracks(tracks);
 
-    if (tracks.length === 0) {
+    if (!tracks || tracks.length === 0) {
       list.innerHTML = `<div style="color: var(--silver-muted); padding: 8px;">No songs found.</div>`;
       return;
     }
 
     const canControl = (this.sync.isHost || this.sync.isAdmin);
 
-    list.innerHTML = tracks.map((t, i) => `
-      <div class="sync-inroom-row" data-idx="${i}">
-        <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
-          <img src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0;">
-          <div style="min-width: 0; flex: 1;">
-            <div style="font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">${t.title}</div>
-            <div style="font-size: 11.5px; color: var(--silver-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.artist}</div>
-          </div>
+    list.innerHTML = tracks.map((t, idx) => `
+      <div class="sync-inroom-row" data-idx="${idx}">
+        <img src="${t.image || t.thumbnail || '/static/assets/logo.png'}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;">
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title}</div>
+          <div style="font-size: 11px; color: var(--silver-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.artist}</div>
         </div>
-        <div style="display: flex; gap: 6px; flex-shrink: 0;">
+        <div style="display: flex; gap: 6px;">
           ${canControl ? `
-            <button class="btn-luxury" style="padding: 5px 10px; font-size: 11px;" data-action="queue">➕ Queue</button>
-            <button class="btn-luxury btn-gold-action" style="padding: 5px 10px; font-size: 11px;" data-action="play">▶ Play Now</button>
+            <button class="btn-luxury btn-gold-action" data-action="room-play" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px;">▶ Play</button>
+            <button class="btn-luxury" data-action="room-queue" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px;">➕ Queue</button>
           ` : `
-            <button class="btn-luxury" style="padding: 5px 10px; font-size: 11px;" data-action="queue">➕ Add to Queue</button>
-            <button class="btn-luxury btn-gold-action" style="padding: 5px 10px; font-size: 11px;" data-action="request">🙋‍♂️ Request</button>
+            <button class="btn-luxury btn-gold-action" data-action="room-request" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px;">🙋‍♂️ Request</button>
           `}
         </div>
       </div>
     `).join("");
 
-    list.querySelectorAll(".sync-inroom-row").forEach(row => {
-      const idx = parseInt(row.dataset.idx);
-      const track = tracks[idx];
-      if (!track) return;
+    list.querySelectorAll('[data-action="room-play"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const track = tracks[parseInt(btn.dataset.idx)];
+        if (track) this.playTrack(track);
+      });
+    });
 
-      const qBtn = row.querySelector('[data-action="queue"]');
-      if (qBtn) {
-        qBtn.addEventListener("click", () => {
-          this.addToQueue(track);
-        });
-      }
+    list.querySelectorAll('[data-action="room-queue"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const track = tracks[parseInt(btn.dataset.idx)];
+        if (track) this.sync.broadcastAddQueue(track);
+      });
+    });
 
-      const pBtn = row.querySelector('[data-action="play"]');
-      if (pBtn) {
-        pBtn.addEventListener("click", () => {
-          this.playTrack(track);
-        });
-      }
-
-      const rBtn = row.querySelector('[data-action="request"]');
-      if (rBtn) {
-        rBtn.addEventListener("click", () => {
+    list.querySelectorAll('[data-action="room-request"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const track = tracks[parseInt(btn.dataset.idx)];
+        if (track) {
           this.sync.requestSong(track);
-          this.showToast(`🙋‍♂️ Requested "${track.title}" to Host`);
-        });
-      }
+          this.showToast(`🙋‍♂️ Submitted request for "${track.title}"`);
+        }
+      });
     });
   }
 
   renderSoundSyncQueue(queueList) {
     const list = document.getElementById("sync-room-queue-list");
-    const count = document.getElementById("sync-room-queue-count");
+    const countBadge = document.getElementById("sync-room-queue-count");
     if (!list) return;
-    if (count) count.innerText = queueList.length;
+
+    if (countBadge) countBadge.innerText = queueList.length;
 
     if (queueList.length === 0) {
       list.innerHTML = `<div style="color: var(--silver-muted); font-size: 13px; padding: 12px 0;">Queue is empty. Search and add tracks above!</div>`;
@@ -3111,30 +2704,23 @@ class OxyzenApp {
     const canControl = (this.sync.isHost || this.sync.isAdmin);
 
     list.innerHTML = queueList.map((t, idx) => `
-      <div class="sync-inroom-row ${canControl ? 'clickable' : ''}" data-queue-idx="${idx}">
-        <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
-          <span style="font-size: 12px; font-weight: 800; color: var(--gold-accent); width: 22px;">#${idx + 1}</span>
-          <img src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0;">
-          <div style="min-width: 0; flex: 1;">
-            <div style="font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">${t.title}</div>
-            <div style="font-size: 11.5px; color: var(--silver-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.artist}</div>
-          </div>
+      <div class="sync-inroom-row" data-queue-idx="${idx}">
+        <span style="font-size: 12px; font-weight: 800; color: var(--gold-accent); width: 20px;">#${idx + 1}</span>
+        <img src="${t.image || t.thumbnail || '/static/assets/logo.png'}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;">
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title}</div>
+          <div style="font-size: 11px; color: var(--silver-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.artist}</div>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-          ${canControl ? `
-            <button class="btn-luxury btn-gold-action" data-action="play-queue-track" data-idx="${idx}" style="padding: 4px 10px; font-size: 11px;">▶ Play</button>
-            <button class="btn-row-action" data-action="remove-queue-track" data-idx="${idx}" style="opacity: 1;" title="Remove from queue">✕</button>
-          ` : `
-            <span style="font-size: 11px; color: var(--silver-muted); padding: 4px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">In Queue</span>
-          `}
-        </div>
+        ${canControl ? `
+          <button class="btn-luxury btn-gold-action" data-action="play-queue-track" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px;">▶ Play</button>
+          <button class="btn-row-action" data-action="remove-queue-track" data-idx="${idx}" style="opacity: 1;">✕</button>
+        ` : ''}
       </div>
     `).join("");
 
     if (canControl) {
       list.querySelectorAll('[data-action="play-queue-track"]').forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
+        btn.addEventListener("click", () => {
           const idx = parseInt(btn.dataset.idx);
           const track = queueList[idx];
           if (track) {
@@ -3145,22 +2731,9 @@ class OxyzenApp {
       });
 
       list.querySelectorAll('[data-action="remove-queue-track"]').forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
+        btn.addEventListener("click", () => {
           const idx = parseInt(btn.dataset.idx);
           this.sync.broadcastRemoveQueue(idx);
-        });
-      });
-
-      list.querySelectorAll('.sync-inroom-row').forEach(row => {
-        row.addEventListener("click", (e) => {
-          if (e.target.closest("button")) return;
-          const idx = parseInt(row.dataset.queueIdx);
-          const track = queueList[idx];
-          if (track) {
-            this.playTrack(track);
-            this.sync.broadcastRemoveQueue(idx);
-          }
         });
       });
     }
@@ -3184,8 +2757,8 @@ class OxyzenApp {
           if (this.sync.isHost || this.sync.isAdmin) {
             this.playTrack(track);
           } else {
-            this.addToQueue(track);
-            this.showToast(`➕ Added "${track.title}" to shared queue`);
+            this.sync.requestSong(track);
+            this.showToast(`🙋‍♂️ Requested "${track.title}"`);
           }
         }
       });
@@ -3204,7 +2777,7 @@ class OxyzenApp {
     item.innerHTML = `
       <div class="sync-chat-user-header">
         <span>${msg.avatar || '🎧'}</span>
-        <span>${msg.user_name || 'Listener'}</span>
+        <span>${this.escapeHTML(msg.user_name || 'Listener')}</span>
         <span style="font-weight: 400; font-size: 10px; margin-left: auto;">${timeStr}</span>
       </div>
       <div class="sync-chat-msg-text">${this.escapeHTML(msg.text)}</div>
@@ -3224,16 +2797,6 @@ class OxyzenApp {
     stream.scrollTop = stream.scrollHeight;
   }
 
-  escapeHTML(str) {
-    return str.replace(/[&<>'"]/g, tag => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    }[tag] || tag));
-  }
-
   spawnReactionParticle(emoji) {
     const el = document.createElement("div");
     el.className = "floating-reaction";
@@ -3245,7 +2808,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // CINEMA FULLSCREEN AMBIENT MODE (LOCKED ULTRA-AESTHETIC)
+  // CINEMA FULLSCREEN AMBIENT MODE
   // -------------------------------------------------------------
   toggleCinemaMode(enable = true) {
     if (!this.cinemaOverlay) return;
@@ -3263,15 +2826,30 @@ class OxyzenApp {
     }
   }
 
+  toggle8DMode() {
+    const active = this.audio.toggle8D();
+    if (this.spatial8DBtn) {
+      this.spatial8DBtn.classList.toggle("active", active);
+      this.spatial8DBtn.innerText = active ? "8D ON" : "8D";
+    }
+    if (this.cinemaSpatialBtn) {
+      this.cinemaSpatialBtn.classList.toggle("active", active);
+      this.cinemaSpatialBtn.innerText = active ? "8D SPATIAL ON" : "8D SPATIAL";
+    }
+    const toggle = document.getElementById("page-spatial-toggle");
+    if (toggle) toggle.checked = active;
+    this.showToast(active ? "🌐 8D Spatial Binaural Audio Enabled" : "Stereo Master Mode");
+  }
+
   // -------------------------------------------------------------
   // OFFLINE DOWNLOAD
   // -------------------------------------------------------------
   downloadTrack(track) {
     this.showToast(`⬇️ Starting download for "${track.title}"...`);
-    const downloadUrl = `${API_BASE}/api/download/${track.id}?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+    const downloadUrl = `${API_BASE}/api/download/${track.id}`;
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = `${track.artist} - ${track.title}.m4a`;
+    a.download = `${track.artist} - ${track.title}.mp4`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -3370,7 +2948,7 @@ class OxyzenApp {
     this.queueList.innerHTML = this.queue.map((t, idx) => `
       <div class="track-row ${idx === this.queueIndex ? 'active' : ''}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-sm); margin-bottom: 4px;" data-queue-idx="${idx}">
         <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-          <img src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" style="width: 36px; height: 36px; border-radius: 4px; object-fit: cover;">
+          <img src="${t.image || t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" style="width: 36px; height: 36px; border-radius: 4px; object-fit: cover;">
           <div style="min-width: 0;">
             <div style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title}</div>
             <div style="font-size: 11px; color: var(--silver-muted);">${t.artist}</div>
@@ -3410,7 +2988,18 @@ class OxyzenApp {
     const max = slider.max ? parseFloat(slider.max) : (slider.id.includes("volume") ? 1 : 100);
     const val = parseFloat(slider.value);
     const percent = ((val - min) / (max - min)) * 100;
-    slider.style.background = `linear-gradient(to right, #F5C542 0%, #F5C542 ${percent}%, rgba(255, 255, 255, 0.12) ${percent}%, rgba(255, 255, 255, 0.12) 100%)`;
+    slider.style.background = `linear-gradient(to right, var(--gold-accent) 0%, var(--gold-accent) ${percent}%, rgba(255, 255, 255, 0.12) ${percent}%, rgba(255, 255, 255, 0.12) 100%)`;
+  }
+
+  escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag));
   }
 
   showToast(message) {

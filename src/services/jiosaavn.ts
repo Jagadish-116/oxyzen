@@ -1,7 +1,7 @@
 /**
- * JioSaavn Music Service for Oxyzen
- * Handles search, song details, high-bitrate CDN audio streams (320kbps/160kbps/96kbps),
- * search suggestions, charts, trending, and explore feeds.
+ * JioSaavn API Service for Oxyzen
+ * Handles track search, stream URL generation (320kbps Akamai CDN), high-res artwork,
+ * explore feeds, multilingual mood stations, autocomplete, and acoustic vibe radar.
  */
 
 export interface SongQuality {
@@ -11,7 +11,7 @@ export interface SongQuality {
 
 export interface FormattedSong {
   id: string;
-  videoId?: string;
+  videoId: string; // Backward compatibility with Oxyzen frontend
   title: string;
   artist: string;
   album: string;
@@ -21,31 +21,43 @@ export interface FormattedSong {
   duration_sec: number;
   duration_formatted: string;
   language: string;
-  year?: string | number;
+  year: string;
   has_lyrics: boolean;
   downloadUrl: SongQuality[];
   stream_url: string;
-  direct_url?: string;
+  direct_url: string;
   encrypted_media_url?: string;
   perma_url?: string;
   copyright?: string;
 }
 
+export interface MoodCategory {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  tagline: string;
+  query: string;
+  color: string;
+  gradient: string;
+}
+
 const SAAVN_BASE_URL = 'https://www.jiosaavn.com/api.php';
+
 const DEFAULT_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8,te;q=0.7',
+  'Cookie': 'L=hindi%2Cenglish%2Ctelugu%2Ctamil%2Cpunjabi;'
 };
 
-// In-memory stream URL cache to avoid repeated auth_url roundtrips
 const streamUrlCache = new Map<string, SongQuality[]>();
 
 /**
- * Decodes all HTML entities commonly returned by JioSaavn (e.g. &quot;, &amp;, &#039;)
+ * Decodes HTML entities commonly returned by JioSaavn
  */
-export function decodeHtmlEntities(str: string | null | undefined): string {
-  if (!str) return '';
+export function decodeHtmlEntities(str: string): string {
+  if (!str || typeof str !== 'string') return '';
   return str
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, '&')
@@ -54,34 +66,34 @@ export function decodeHtmlEntities(str: string | null | undefined): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
     .trim();
 }
 
 /**
- * Replaces low-res thumbnail resolutions (50x50, 150x150) with high-res 500x500 CDN URLs
+ * Enhances JioSaavn image URL to high definition (500x500)
  */
-export function formatImageUrl(url: string | null | undefined, resolution = '500x500'): string {
-  if (!url) return '/static/assets/logo.png';
+export function formatImageUrl(url: string, quality: '500x500' | '150x150' | '50x50' = '500x500'): string {
+  if (!url || typeof url !== 'string') return '/static/assets/logo.png';
   return url
-    .replace('50x50', resolution)
-    .replace('150x150', resolution)
-    .replace('http://', 'https://');
+    .replace(/50x50/g, quality)
+    .replace(/150x150/g, quality)
+    .replace(/^http:\/\//, 'https://');
 }
 
 /**
- * Formats duration in seconds to "m:ss" string
+ * Formats duration in seconds to mm:ss format
  */
-export function formatDuration(seconds: number | string): string {
-  const totalSec = Math.max(0, parseInt(String(seconds), 10) || 0);
-  const mins = Math.floor(totalSec / 60);
-  const remSec = totalSec % 60;
-  return `${mins}:${remSec < 10 ? '0' : ''}${remSec}`;
+export function formatDuration(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return '3:30';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
 /**
  * Generates direct high-bitrate CDN audio stream links (320kbps, 160kbps, 96kbps, 48kbps, 12kbps)
- * from an encrypted media URL.
+ * from an encrypted media URL using JioSaavn's song.generateAuthToken on Akamai CDN.
  */
 export async function generateStreamUrls(encryptedUrl: string): Promise<SongQuality[]> {
   if (!encryptedUrl) return [];
@@ -98,8 +110,8 @@ export async function generateStreamUrls(encryptedUrl: string): Promise<SongQual
     const data: any = await res.json();
     if (data && typeof data.auth_url === 'string') {
       const rawBase = data.auth_url.split('?')[0];
-      const normalizedBase = rawBase
-        .replace(/^https?:\/\/[^\/]+/, 'https://aac.saavncdn.com');
+      // Normalize to Akamai open streaming host
+      const normalizedBase = rawBase.replace(/^https?:\/\/[^\/]+/, 'https://aac.saavncdn.com');
 
       const qualities: SongQuality[] = [
         { bitrate: '12kbps', url: normalizedBase.replace('_96', '_12') },
@@ -147,14 +159,13 @@ export async function formatSongObject(raw: any, resolveStreams = true): Promise
     }
   }
 
-  // If streams couldn't be resolved or were skipped, fall back to /api/stream/:id or direct link
   if (!streamUrl) {
     streamUrl = `/api/stream/${id}`;
   }
 
   return {
     id,
-    videoId: id, // For backward compatibility with legacy frontends
+    videoId: id,
     title,
     artist,
     album,
@@ -183,27 +194,32 @@ export async function searchSongs(query: string, page = 1, limit = 30): Promise<
     return { query: '', total: 0, page, results: [] };
   }
 
-  const url = `${SAAVN_BASE_URL}?__call=search.getResults&_format=json&_marker=0&cc=in&includeMetaTags=1&p=${page}&n=${limit}&q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, { headers: DEFAULT_HEADERS });
-  if (!res.ok) {
-    throw new Error(`JioSaavn search failed with status ${res.status}`);
+  try {
+    const url = `${SAAVN_BASE_URL}?__call=search.getResults&_format=json&_marker=0&cc=in&includeMetaTags=1&p=${page}&n=${limit}&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: DEFAULT_HEADERS });
+    if (!res.ok) {
+      throw new Error(`JioSaavn search failed with status ${res.status}`);
+    }
+
+    const data: any = await res.json();
+    const rawResults: any[] = Array.isArray(data.results) ? data.results : [];
+    const total = parseInt(String(data.total || rawResults.length), 10) || rawResults.length;
+
+    // Resolve stream URLs in parallel
+    const results = await Promise.all(
+      rawResults.map((raw) => formatSongObject(raw, true))
+    );
+
+    return {
+      query,
+      total,
+      page,
+      results
+    };
+  } catch (err) {
+    console.error(`Search error for "${query}":`, err);
+    return { query, total: 0, page, results: [] };
   }
-
-  const data: any = await res.json();
-  const rawResults: any[] = Array.isArray(data.results) ? data.results : [];
-  const total = parseInt(String(data.total || rawResults.length), 10) || rawResults.length;
-
-  // Resolve stream URLs in parallel
-  const results = await Promise.all(
-    rawResults.map((raw) => formatSongObject(raw, true))
-  );
-
-  return {
-    query,
-    total,
-    page,
-    results
-  };
 }
 
 /**
@@ -212,20 +228,25 @@ export async function searchSongs(query: string, page = 1, limit = 30): Promise<
 export async function getSongDetails(songId: string): Promise<FormattedSong | null> {
   if (!songId) return null;
 
-  const url = `${SAAVN_BASE_URL}?__call=song.getDetails&_format=json&_marker=0&cc=in&pids=${encodeURIComponent(songId)}`;
-  const res = await fetch(url, { headers: DEFAULT_HEADERS });
-  if (!res.ok) {
-    throw new Error(`JioSaavn song details failed with status ${res.status}`);
-  }
+  try {
+    const url = `${SAAVN_BASE_URL}?__call=song.getDetails&_format=json&_marker=0&cc=in&pids=${encodeURIComponent(songId)}`;
+    const res = await fetch(url, { headers: DEFAULT_HEADERS });
+    if (!res.ok) {
+      throw new Error(`JioSaavn song details failed with status ${res.status}`);
+    }
 
-  const data: any = await res.json();
-  const rawSong = data[songId] || (Array.isArray(data.songs) ? data.songs[0] : null) || Object.values(data)[0];
+    const data: any = await res.json();
+    const rawSong = data[songId] || (Array.isArray(data.songs) ? data.songs[0] : null) || Object.values(data)[0];
 
-  if (!rawSong || typeof rawSong !== 'object' || !rawSong.id) {
+    if (!rawSong || typeof rawSong !== 'object' || !rawSong.id) {
+      return null;
+    }
+
+    return await formatSongObject(rawSong, true);
+  } catch (err) {
+    console.error(`Error in getSongDetails for ${songId}:`, err);
     return null;
   }
-
-  return await formatSongObject(rawSong, true);
 }
 
 /**
@@ -262,7 +283,6 @@ export async function getSearchSuggestions(query: string): Promise<string[]> {
       }
     }
 
-    // Return unique suggestions up to 10
     return Array.from(new Set(suggestions)).slice(0, 10);
   } catch (err) {
     console.warn('Error fetching search suggestions:', err);
@@ -271,67 +291,19 @@ export async function getSearchSuggestions(query: string): Promise<string[]> {
 }
 
 /**
- * Fetches trending tracks and playlists from JioSaavn
+ * Fetches trending tracks from JioSaavn with robust search fallback
  */
 export async function getTrending(): Promise<{ songs: FormattedSong[]; albums: any[]; playlists: any[] }> {
   try {
-    const url = `${SAAVN_BASE_URL}?__call=content.getTrending&_format=json&_marker=0&cc=in`;
-    const res = await fetch(url, { headers: DEFAULT_HEADERS });
-    if (!res.ok) throw new Error(`getTrending failed: ${res.status}`);
-
-    const data: any = await res.json();
-    const rawItems: any[] = Array.isArray(data) ? data : [];
-
-    const songs: FormattedSong[] = [];
-    const albums: any[] = [];
-    const playlists: any[] = [];
-
-    for (const item of rawItems) {
-      if (item.type === 'song') {
-        const songData = item.details || item;
-        const formatted = await formatSongObject(songData, true);
-        songs.push(formatted);
-      } else if (item.type === 'album') {
-        const d = item.details || item;
-        albums.push({
-          id: d.albumid || d.id,
-          title: decodeHtmlEntities(d.title || d.song),
-          artist: decodeHtmlEntities(d.artist?.name || d.primary_artists || ''),
-          image: formatImageUrl(d.image, '500x500'),
-          year: d.release_date || d.year || '',
-          language: d.language || item.language || ''
-        });
-      } else if (item.type === 'playlist') {
-        const d = item.details || item;
-        playlists.push({
-          id: d.listid || d.id,
-          title: decodeHtmlEntities(d.title || d.listname),
-          image: formatImageUrl(d.image, '500x500'),
-          count: d.count || d.song_count || 0
-        });
-      }
-    }
-
-    // If direct songs in trending were few, supplement with top search hits for popular charts
-    if (songs.length < 10) {
-      const topHits = await searchSongs('Trending India Hits', 1, 15);
-      songs.push(...topHits.results);
-    }
-
-    return {
-      songs: songs.slice(0, 30),
-      albums: albums.slice(0, 15),
-      playlists: playlists.slice(0, 15)
-    };
-  } catch (err) {
-    console.warn('Error fetching trending feed:', err);
-    // Fallback to top songs search
-    const fallback = await searchSongs('Top Bollywood Trending', 1, 20);
+    const fallback = await searchSongs('Trending India Hits 2026', 1, 25);
     return {
       songs: fallback.results,
       albums: [],
       playlists: []
     };
+  } catch (err) {
+    console.warn('Error in getTrending:', err);
+    return { songs: [], albums: [], playlists: [] };
   }
 }
 
@@ -362,100 +334,104 @@ export async function getCharts(): Promise<any[]> {
 }
 
 /**
- * Curated Explore Feed organized into luxury mood hubs and language categories
+ * Curated Explore Feed organized into luxury sections
  */
 export async function getExploreFeed(profile?: any): Promise<{ hero: any; sections: any[] }> {
   try {
-    const [trendingData, charts] = await Promise.all([
-      getTrending(),
-      getCharts()
+    const [trendingRes, bollywoodRes, globalRes, southRes, lofiRes, partyRes, punjabiRes] = await Promise.all([
+      searchSongs('Trending India Top Hits', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Latest Bollywood Blockbusters', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Billboard Global Top 50 Hits', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Latest Telugu Superhits', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Midnight Bollywood Lofi Chill', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Club EDM High Energy Dance', 1, 12).catch(() => ({ results: [] })),
+      searchSongs('Top Punjabi Beats Sidhu Moose Wala Diljit', 1, 12).catch(() => ({ results: [] }))
     ]);
 
-    const heroSong = trendingData.songs[0] || null;
-    const hero = heroSong
+    const heroTrack = trendingRes.results[0] || bollywoodRes.results[0] || null;
+    const hero = heroTrack
       ? {
-          id: heroSong.id,
-          title: heroSong.title,
-          subtitle: `${heroSong.artist} • ${heroSong.album}`,
-          image: heroSong.image,
-          track: heroSong,
+          id: heroTrack.id,
+          title: heroTrack.title,
+          subtitle: `${heroTrack.artist} • ${heroTrack.album}`,
+          image: heroTrack.image,
+          track: heroTrack,
           badge: 'FEATURED MASTER'
         }
       : null;
-
-    // Multilingual & Genre sections
-    const [hindiHits, englishHits, teluguHits, lofiChill, edmParty] = await Promise.all([
-      searchSongs('Latest Hindi Hits', 1, 10).catch(() => ({ results: [] })),
-      searchSongs('Global Top 50 English Hits', 1, 10).catch(() => ({ results: [] })),
-      searchSongs('Top Telugu Hits', 1, 10).catch(() => ({ results: [] })),
-      searchSongs('Bollywood Lofi Chill Night', 1, 10).catch(() => ({ results: [] })),
-      searchSongs('Club EDM Party Dance', 1, 10).catch(() => ({ results: [] })),
-    ]);
 
     const sections = [
       {
         id: 'trending_now',
         title: '🔥 Trending Now',
-        subtitle: 'The hottest tracks spinning right now',
-        type: 'horizontal-scroll',
-        tracks: trendingData.songs.slice(0, 15)
+        tagline: 'The hottest tracks spinning right now across the nation',
+        badge: 'HOT',
+        color: '#F5C542',
+        tracks: trendingRes.results.length > 0 ? trendingRes.results : bollywoodRes.results
       },
       {
-        id: 'top_charts',
-        title: '🏆 Top Charts & Playlists',
-        subtitle: 'Official Top 50 charts across genres',
-        type: 'cards',
-        items: charts.slice(0, 8)
-      },
-      {
-        id: 'hindi_spotlight',
+        id: 'bollywood_spotlight',
         title: '✨ Bollywood Spotlight',
-        subtitle: 'The latest chart-toppers from Indian cinema',
-        type: 'horizontal-scroll',
-        tracks: hindiHits.results
+        tagline: 'Latest cinema chart-toppers & soulful melodies',
+        badge: 'PREMIERE',
+        color: '#A855F7',
+        tracks: bollywoodRes.results
       },
       {
         id: 'global_hits',
         title: '🌍 Global Top Anthems',
-        subtitle: 'Worldwide viral sensation tracks',
-        type: 'horizontal-scroll',
-        tracks: englishHits.results
+        tagline: 'Worldwide viral sensation tracks & Billboard chart-toppers',
+        badge: 'GLOBAL',
+        color: '#22D3EE',
+        tracks: globalRes.results
       },
       {
-        id: 'regional_telugu',
+        id: 'south_wave',
         title: '🌟 South Cinema Wave',
-        subtitle: 'Top Telugu and South Indian blockbuster music',
-        type: 'horizontal-scroll',
-        tracks: teluguHits.results
+        tagline: 'High-octane Telugu & Tamil blockbuster soundtracks',
+        badge: 'MASS',
+        color: '#F97316',
+        tracks: southRes.results
       },
       {
         id: 'lofi_chill',
         title: '🌙 Midnight Lofi & Chill',
-        subtitle: 'Relaxing ambient beats for night vibes & study sessions',
-        type: 'horizontal-scroll',
-        tracks: lofiChill.results
+        tagline: 'Relaxing ambient beats for late night vibes & deep focus',
+        badge: 'ZEN',
+        color: '#10B981',
+        tracks: lofiRes.results
       },
       {
         id: 'party_edm',
         title: '⚡ High Energy Party & EDM',
-        subtitle: 'Bass-heavy club bangers to ignite the floor',
-        type: 'horizontal-scroll',
-        tracks: edmParty.results
+        tagline: 'Bass-heavy club bangers to ignite the floor',
+        badge: 'CLUB',
+        color: '#EF4444',
+        tracks: partyRes.results
+      },
+      {
+        id: 'punjabi_swag',
+        title: '🔥 Punjabi Swag & Hip-Hop',
+        tagline: 'Loud brass, 808 bass, and heavy urban rhythms',
+        badge: 'SWAG',
+        color: '#EC4899',
+        tracks: punjabiRes.results
       }
-    ];
+    ].filter(s => s.tracks && s.tracks.length > 0);
 
     return { hero, sections };
   } catch (err) {
     console.error('Error generating explore feed:', err);
-    const searchRes = await searchSongs('Top Bollywood Hits', 1, 20);
+    const searchRes = await searchSongs('Top India Hits', 1, 20);
     return {
       hero: searchRes.results[0] || null,
       sections: [
         {
-          id: 'popular',
-          title: '🔥 Popular Tracks',
-          subtitle: 'Top stream hits',
-          type: 'horizontal-scroll',
+          id: 'trending',
+          title: '🔥 Trending Hits',
+          tagline: 'Top high-fidelity audio streams',
+          badge: 'FEATURED',
+          color: '#F5C542',
           tracks: searchRes.results
         }
       ]
@@ -464,52 +440,141 @@ export async function getExploreFeed(profile?: any): Promise<{ hero: any; sectio
 }
 
 /**
- * Mood categories definition
+ * Mood categories definition - fully aligned with all frontend shortcut keys
  */
-export function getMoodCategories(): any[] {
+export function getMoodCategories(): MoodCategory[] {
   return [
-    { key: 'chill', name: 'Chill & Relax', icon: '☕', query: 'chill acoustic lofi songs', color: '#10B981' },
-    { key: 'workout', name: 'Workout & Gym', icon: '⚡', query: 'high energy workout gym pump music', color: '#EF4444' },
-    { key: 'party', name: 'Party & Dance', icon: '🎉', query: 'party dance club hits', color: '#F59E0B' },
-    { key: 'focus', name: 'Deep Focus & Study', icon: '🧠', query: 'ambient study focus instrumental', color: '#6366F1' },
-    { key: 'romance', name: 'Love & Romance', icon: '💖', query: 'romantic love songs heart', color: '#EC4899' },
-    { key: 'sad', name: 'Heartbreak & Soul', icon: '🌧️', query: 'sad emotional breakup acoustic', color: '#64748B' },
-    { key: 'retro', name: 'Golden Retro Classics', icon: '📻', query: '90s 2000s bollywood retro classics', color: '#D97706' },
-    { key: 'devotional', name: 'Spiritual & Bhakti', icon: '🕉️', query: 'devotional bhajans spiritual mantras', color: '#8B5CF6' }
+    {
+      id: 'love',
+      key: 'love',
+      name: 'Romantic Love & Melodies',
+      icon: '💖',
+      tagline: 'Heartfelt acoustics, romantic duets, and timeless love ballads',
+      query: 'Love Songs',
+      color: '#EC4899',
+      gradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'breakup',
+      key: 'breakup',
+      name: 'Breakup & Heartbreak',
+      icon: '💔',
+      tagline: 'Soulful melancholy, emotional vocals, and deep healing cuts',
+      query: 'Breakup Songs',
+      color: '#8B5CF6',
+      gradient: 'linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'feel_good',
+      key: 'feel_good',
+      name: 'Feel Good & Uplifting',
+      icon: '☀️',
+      tagline: 'Bright acoustic chords, joyful rhythms, and sunny optimism',
+      query: 'Feel Good Songs',
+      color: '#F59E0B',
+      gradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'rock',
+      key: 'rock',
+      name: 'Rock, Metal & Heavy Riffs',
+      icon: '⚡',
+      tagline: 'Electric distortion, explosive drums, and legendary guitar anthems',
+      query: 'Rock Songs',
+      color: '#EF4444',
+      gradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'heroic',
+      key: 'heroic',
+      name: 'Heroic & Epic Cinema',
+      icon: '🛡️',
+      tagline: 'Massive orchestral builds, thundering brass, and cinematic soundtracks',
+      query: 'Epic Cinema Soundtracks',
+      color: '#3B82F6',
+      gradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'lofi',
+      key: 'lofi',
+      name: 'Midnight Lofi & Chill',
+      icon: '🌌',
+      tagline: 'Mellow Rhodes chords, rain textures, and cozy bedroom beats',
+      query: 'Lofi Songs',
+      color: '#10B981',
+      gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'workout',
+      key: 'workout',
+      name: 'Workout & Gym Pump',
+      icon: '🔥',
+      tagline: 'High-BPM adrenaline, phonk drops, and heavy workout motivation',
+      query: 'Workout Songs',
+      color: '#F43F5E',
+      gradient: 'linear-gradient(135deg, rgba(244, 63, 94, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'party',
+      key: 'party',
+      name: 'Party, Club & EDM Drops',
+      icon: '💃',
+      tagline: 'Floor-filling basslines, celebratory drops, and festival bangers',
+      query: 'Party Hits',
+      color: '#A855F7',
+      gradient: 'linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 24, 0.95))'
+    },
+    {
+      id: 'sad',
+      key: 'sad',
+      name: 'Soulful Melancholy',
+      icon: '🌧️',
+      tagline: 'Poignant lyricism, gentle piano, and introspective soundscapes',
+      query: 'Sad Songs',
+      color: '#64748B',
+      gradient: 'linear-gradient(135deg, rgba(100, 116, 139, 0.22), rgba(17, 17, 24, 0.95))'
+    }
   ];
 }
 
 /**
- * Mood feed tracks
+ * Mood feed tracks with multilingual customization
  */
-export async function getMoodFeed(moodKey: string, languages: string[] = ['Hindi', 'English']): Promise<{ mood: string; tracks: FormattedSong[] }> {
+export async function getMoodFeed(moodKey: string, languages: string[] = ['Hindi', 'English', 'Telugu']): Promise<{ mood: MoodCategory; tracks: FormattedSong[] }> {
   const categories = getMoodCategories();
-  const category = categories.find((c) => c.key === moodKey) || categories[0];
-  const query = `${category.query} ${languages.join(' ')}`.trim();
-  const res = await searchSongs(query, 1, 25);
+  const normalizedKey = (moodKey || 'love').toLowerCase().trim();
+  const category = categories.find((c) => c.key === normalizedKey || c.id === normalizedKey) || categories[0];
+  
+  const primaryLang = languages[0] || 'Hindi';
+  let res = await searchSongs(`${primaryLang} ${category.query}`, 1, 30);
+  if (res.results.length < 5) {
+    res = await searchSongs(category.query, 1, 30);
+  }
   return {
-    mood: category.name,
+    mood: category,
     tracks: res.results
   };
 }
 
 /**
- * Smart track and vibe recommendations
+ * Smart track and acoustic vibe recommendations
  */
 export async function getVibeRecommendations(songId?: string, artist?: string, title?: string): Promise<FormattedSong[]> {
   try {
     let query = '';
     if (artist && artist !== 'Unknown Artist') {
-      query = `${artist} hits`;
+      const cleanArtist = artist.split(',')[0].split('&')[0].trim();
+      query = `${cleanArtist} best songs hits`;
     } else if (title) {
-      query = `${title} mix`;
+      const cleanTitle = title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+      query = `${cleanTitle} mix recommendations`;
     } else {
-      query = 'Top India Hits';
+      query = 'Top Acoustic Hi-Fi Hits';
     }
 
-    const res = await searchSongs(query, 1, 15);
-    // Filter out the current track if songId is provided
-    return res.results.filter((t) => t.id !== songId).slice(0, 10);
+    const res = await searchSongs(query, 1, 18);
+    // Filter out the active track to return 10 distinct kindred tracks
+    return res.results.filter((t) => t.id !== songId).slice(0, 12);
   } catch (err) {
     console.warn('Error fetching vibe recommendations:', err);
     return [];

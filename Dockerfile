@@ -1,19 +1,26 @@
-FROM python:3.11-slim
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install system dependencies (ffmpeg for media processing)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+COPY package*.json tsconfig.json ./
+RUN npm ci
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY src ./src
+COPY static ./static
+RUN npm run build
 
-COPY . .
+FROM node:20-alpine AS runner
 
+WORKDIR /app
+ENV NODE_ENV=production
 ENV PORT=8000
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/static ./static
+
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn backend.server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["node", "dist/index.js"]

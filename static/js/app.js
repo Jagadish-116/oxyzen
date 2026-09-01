@@ -69,9 +69,11 @@ class OxyzenApp {
     if (!track) return null;
     const id = track.id || track.videoId;
     if (!id) return null;
-    let thumb = track.thumbnail || "";
-    if (!thumb || thumb === "/static/assets/logo.png") {
-      thumb = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+    let thumb = track.image || track.thumbnail || "";
+    if (thumb) {
+      thumb = thumb.replace('50x50', '500x500').replace('150x150', '500x500');
+    } else {
+      thumb = "/static/assets/logo.png";
     }
     const normalized = {
       ...track,
@@ -81,8 +83,11 @@ class OxyzenApp {
       artist: track.artist || "Unknown Artist",
       album: track.album || "Oxyzen Audio",
       thumbnail: thumb,
-      duration: track.duration || "3:30",
-      duration_sec: track.duration_sec || 210
+      image: thumb,
+      stream_url: track.stream_url || "",
+      downloadUrl: track.downloadUrl || [],
+      duration: track.duration_formatted || track.duration || "3:30",
+      duration_sec: track.duration_sec || track.duration || 210
     };
     this.trackCache.set(id, normalized);
     return normalized;
@@ -106,13 +111,14 @@ class OxyzenApp {
     if (card) {
       const title = card.querySelector('.card-title') ? card.querySelector('.card-title').innerText : 'Track';
       const artist = card.querySelector('.card-subtitle') ? card.querySelector('.card-subtitle').innerText : 'Artist';
-      const img = card.querySelector('.card-img') ? card.querySelector('.card-img').src : `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`;
+      const img = card.querySelector('.card-img') ? card.querySelector('.card-img').src : `/static/assets/logo.png`;
       return this.registerTrack({
         id: trackId,
         videoId: trackId,
         title,
         artist,
         thumbnail: img,
+        image: img,
         duration: "3:30",
         duration_sec: 210
       });
@@ -1284,7 +1290,7 @@ class OxyzenApp {
   }
 
   renderMusicCardHTML(track) {
-    const thumb = track.thumbnail || `https://i.ytimg.com/vi/${track.id || track.videoId}/hqdefault.jpg`;
+    const thumb = track.image || track.thumbnail || '/static/assets/logo.png';
     return `
       <div class="music-card" data-track-id="${track.id || track.videoId}">
         <div class="card-img-wrapper">
@@ -1605,7 +1611,7 @@ class OxyzenApp {
   }
 
   updatePlayerDockUI(track) {
-    const thumb = track.thumbnail || `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`;
+    const thumb = track.image || track.thumbnail || '/static/assets/logo.png';
     if (this.playerThumb) this.playerThumb.src = thumb;
     if (this.playerTitle) this.playerTitle.innerText = track.title || "Unknown Track";
     if (this.playerArtist) this.playerArtist.innerText = track.artist || "Unknown Artist";
@@ -1810,7 +1816,7 @@ class OxyzenApp {
       return;
     }
 
-    const currentThumb = this.currentTrack.thumbnail || `https://i.ytimg.com/vi/${this.currentTrack.id}/hqdefault.jpg`;
+    const currentThumb = this.currentTrack.image || this.currentTrack.thumbnail || '/static/assets/logo.png';
 
     container.innerHTML = `
       <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(17, 17, 21, 0.95)); margin-bottom: 28px;">
@@ -2586,7 +2592,7 @@ class OxyzenApp {
         try {
           const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=15`);
           const data = await res.json();
-          this.renderInroomSearchResults(data.tracks || []);
+          this.renderInroomSearchResults(data.tracks || data.results || []);
         } catch (e) {
           if (resultsBox) resultsBox.innerHTML = `<div style="color: #EF4444;">Search failed</div>`;
         }

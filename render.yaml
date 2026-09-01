@@ -1,9 +1,11 @@
 services:
   - type: web
     name: oxyzen-music
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.server:app --host 0.0.0.0 --port $PORT
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.8
+      - key: NODE_VERSION
+        value: 20.12.0
+      - key: PORT
+        value: 8000

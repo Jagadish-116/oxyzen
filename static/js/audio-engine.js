@@ -166,12 +166,19 @@ class OxyzenAudioEngine {
         const id = this.currentTrack.id || this.currentTrack.videoId;
         console.info(`Attempting resilient stream recovery (attempt ${this.retryCount}/${this.maxRetries}) for ${id}...`);
         try {
-          // Trigger backend force_refresh resolution to pull fresh token or switch to Invidious mirror
-          await fetch(`/api/stream_info/${id}?force_refresh=true`);
-          this.audio.src = `/api/stream/${id}?force_refresh=true&t=${Date.now()}`;
-          await this.audio.play();
-          this.isPlaying = true;
-          return;
+          // Fetch fresh song details to obtain fresh direct CDN link
+          const res = await fetch(`/api/song/${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.stream_url) {
+              this.currentTrack.stream_url = data.stream_url;
+              this.currentTrack.downloadUrl = data.downloadUrl;
+              this.audio.src = data.stream_url;
+              await this.audio.play();
+              this.isPlaying = true;
+              return;
+            }
+          }
         } catch (retryErr) {
           console.warn("Resilient audio recovery attempt failed:", retryErr);
         }
@@ -187,8 +194,18 @@ class OxyzenAudioEngine {
     this.currentTrack = track;
     this.retryCount = 0;
     
-    // Direct stream proxy endpoint
-    const streamUrl = `/api/stream/${track.id || track.videoId}`;
+    // Resolve direct high-bitrate JioSaavn CDN audio stream URL
+    let streamUrl = track.stream_url || track.direct_url || '';
+    if (!streamUrl && Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
+      // Use highest bitrate quality (last element in array, e.g. 320kbps)
+      streamUrl = track.downloadUrl[track.downloadUrl.length - 1].url;
+    }
+    
+    const id = track.id || track.videoId;
+    if (!streamUrl && id) {
+      streamUrl = `/api/stream/${id}`;
+    }
+
     this.audio.src = streamUrl;
     
     if (startTime > 0) {
@@ -210,8 +227,9 @@ class OxyzenAudioEngine {
     const id = track.id || track.videoId;
     if (!id) return;
     try {
-      // Warm up backend stream resolution cache
-      fetch(`/api/stream_info/${id}`).catch(() => {});
+      if (!track.stream_url) {
+        fetch(`/api/song/${id}`).catch(() => {});
+      }
     } catch (e) {}
   }
 
@@ -363,12 +381,15 @@ class OxyzenAudioEngine {
   // OS MediaSession Lockscreen & Bluetooth Controls
   updateMediaSessionMetadata(track) {
     if (!('mediaSession' in navigator) || !track) return;
+    const artworkUrl = track.image || track.thumbnail || "/static/assets/logo.png";
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title || "Oxyzen Track",
       artist: track.artist || "Oxyzen Artist",
       album: track.album || "Oxyzen Pure Music",
       artwork: [
-        { src: track.thumbnail || "/static/assets/logo.png", sizes: '512x512', type: 'image/jpeg' }
+        { src: artworkUrl, sizes: '512x512', type: 'image/jpeg' },
+        { src: artworkUrl, sizes: '256x256', type: 'image/jpeg' },
+        { src: artworkUrl, sizes: '96x96', type: 'image/jpeg' }
       ]
     });
 

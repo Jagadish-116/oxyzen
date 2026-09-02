@@ -58,6 +58,14 @@ class OxyzenStorage {
     }
   }
 
+  getLikedSongs() {
+    return this.getLikedTracks();
+  }
+
+  getFavorites() {
+    return this.getLikedTracks();
+  }
+
   getLikedIds() {
     const tracks = this.getLikedTracks();
     return new Set(tracks.map(t => t.id || t.videoId));

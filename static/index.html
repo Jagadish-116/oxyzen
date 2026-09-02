@@ -23,10 +23,8 @@
       <!-- Luxury Brand Logo -->
       <div class="brand-logo-container" onclick="window.oxyzen && window.oxyzen.switchView('explore')">
         <img src="/static/assets/logo.png" alt="OXYZEN" class="brand-logo-img">
-        <div>
-          <span class="brand-text">
-            <span class="brand-silver">O</span><span class="brand-gold">XYZ</span><span class="brand-silver">EN</span>
-          </span>
+        <div class="brand-text-wrap">
+          <span class="brand-text"><span class="brand-silver">O</span><span class="brand-gold">XYZ</span><span class="brand-silver">EN</span></span>
           <span class="brand-tag">PRO</span>
         </div>
       </div>
@@ -455,12 +453,11 @@
                 </form>
               </div>
 
-              <!-- AI Vibe Party Suggestions -->
-              <div class="sync-party-suggestions-card" style="margin-top: 16px; background: rgba(16,16,24,0.85); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 18px;">
+              <div class="sync-party-suggestions-card" style="margin-top: 16px;">
                 <div class="sync-card-header" style="margin-bottom: 12px;">
                   <span>📡 Kindred Party Suggestions</span>
                 </div>
-                <div class="cards-grid" id="sync-party-suggestions-list" style="grid-template-columns: repeat(2, 1fr); gap: 10px;"></div>
+                <div class="sync-suggestions-scroll" id="sync-party-suggestions-list"></div>
               </div>
             </div>
           </div>
@@ -875,31 +872,70 @@
 
   <!-- ==================== 10-BAND EQUALIZER & 8D MODAL ==================== -->
   <div class="modal-overlay" id="equalizer-modal">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <div class="modal-title">
-          <span>🎛️</span>
-          <span>10-Band Studio Equalizer & 8D Spatial Audio</span>
+    <div class="modal-dialog eq-studio-dialog">
+      <div class="modal-header eq-modal-header">
+        <div class="modal-title eq-modal-title">
+          <div class="eq-header-icon-badge">🎛️</div>
+          <div>
+            <div class="eq-main-title">Acoustic Studio Master Console</div>
+            <div class="eq-sub-title">10-Band Parametric Equalizer & 8D Binaural Soundstage</div>
+          </div>
         </div>
         <button class="modal-close-btn" id="eq-close-btn">✕</button>
       </div>
-      <div class="modal-body">
-        <!-- Preset Chips -->
-        <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--silver-muted); margin-bottom: 10px;">
-          Master Acoustic Presets
-        </div>
-        <div class="mood-chips-container" style="margin-bottom: 20px; display: flex; gap: 8px; overflow-x: auto;">
-          <div class="mood-chip eq-preset-chip active" data-preset="flat">Flat Studio</div>
-          <div class="mood-chip eq-preset-chip" data-preset="bass_boost">🔥 Bass Boost</div>
-          <div class="mood-chip eq-preset-chip" data-preset="vocal">🎙️ Vocal Clarity</div>
-          <div class="mood-chip eq-preset-chip" data-preset="electronic">⚡ EDM / Club</div>
-          <div class="mood-chip eq-preset-chip" data-preset="rock">🎸 Rock</div>
-          <div class="mood-chip eq-preset-chip" data-preset="acoustic">🎻 Acoustic</div>
-          <div class="mood-chip eq-preset-chip" data-preset="lofi_chill">☕ Lo-Fi Zen</div>
+      <div class="modal-body eq-modal-body">
+        <!-- EQ Visualizer Response Curve Canvas -->
+        <div class="eq-curve-card">
+          <div class="eq-curve-header">
+            <span>REAL-TIME FREQUENCY RESPONSE CURVE</span>
+            <span id="eq-active-preset-badge" class="eq-curve-badge">PRESET: FLAT STUDIO</span>
+          </div>
+          <canvas id="eq-curve-canvas" width="600" height="90" class="eq-curve-canvas"></canvas>
         </div>
 
-        <!-- 10 Parametric Sliders -->
-        <div class="eq-sliders-grid" id="eq-sliders-container"></div>
+        <!-- Master Acoustic Presets -->
+        <div class="eq-presets-bar">
+          <div class="eq-presets-label">STUDIO PRESETS</div>
+          <div class="eq-presets-scroll" id="eq-preset-chips-row">
+            <button class="eq-preset-chip active" data-preset="flat">✦ Flat Studio</button>
+            <button class="eq-preset-chip" data-preset="bass_boost">🔥 Bass Boost</button>
+            <button class="eq-preset-chip" data-preset="vocal">🎙️ Vocal Clarity</button>
+            <button class="eq-preset-chip" data-preset="electronic">⚡ EDM / Club</button>
+            <button class="eq-preset-chip" data-preset="rock">🎸 Rock</button>
+            <button class="eq-preset-chip" data-preset="acoustic">🎻 Acoustic</button>
+            <button class="eq-preset-chip" data-preset="lofi_chill">☕ Lo-Fi Zen</button>
+          </div>
+        </div>
+
+        <!-- 10 Parametric Faders Rack -->
+        <div class="eq-faders-rack">
+          <div class="eq-db-scale-labels">
+            <span>+12dB</span>
+            <span>+6dB</span>
+            <span>0dB</span>
+            <span>-6dB</span>
+            <span>-12dB</span>
+          </div>
+          <div class="eq-sliders-grid" id="eq-sliders-container"></div>
+        </div>
+
+        <!-- Spatial 8D & Master Console Footer -->
+        <div class="eq-console-footer">
+          <div class="eq-spatial-card" id="eq-spatial-card">
+            <div class="eq-spatial-info">
+              <span class="eq-spatial-icon">🌐</span>
+              <div>
+                <div class="eq-spatial-title">8D Binaural Spatial Audio</div>
+                <div class="eq-spatial-sub">360° dynamic acoustic orbit for headphones</div>
+              </div>
+            </div>
+            <button class="btn-luxury" id="eq-spatial-toggle-btn">Enable 8D Spatial</button>
+          </div>
+          <button class="btn-luxury btn-danger-action" id="eq-reset-btn" style="padding: 10px 18px;">
+            <span>🔄</span>
+            <span>Reset Flat</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

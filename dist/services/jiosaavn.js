@@ -249,42 +249,31 @@ export async function getCharts() {
 }
 /**
  * Deep Kindred Vibe Radar recommendations algorithm
- * Adapts strongly to the active song: extracts movie/soundtrack, primary & secondary artists,
- * language, and genre, returning 40-60+ related songs!
+ * Adapts to the genre and language of the playing song (and artist/composer style)
+ * rather than searching for song title words. Returns 50+ deduplicated songs!
  */
 export async function getVibeRecommendations(songId, artist, title, language) {
     try {
-        const cleanTitle = (title || '').replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').replace(/from\s+["'].*?["']/gi, '').trim();
-        // Extract movie/album if embedded in title like (From "Devara")
-        let movieName = '';
-        const movieMatch = (title || '').match(/(?:from|movie|album)\s+["']?([^"'\)\(]+)["']?/i);
-        if (movieMatch && movieMatch[1]) {
-            movieName = movieMatch[1].trim();
-        }
-        // Artist extractions
-        const artistParts = (artist || '').split(/[,&/|]/).map(a => a.trim()).filter(a => a.length > 0);
+        const lang = (language && language.trim()) ? language.trim() : 'Telugu';
+        // Artist / Composer extractions
+        const artistParts = (artist || '').split(/[,&/|]/).map(a => a.trim()).filter(a => a.length > 0 && a !== 'Unknown Artist');
         const primaryArtist = artistParts[0] || '';
         const secondaryArtist = artistParts[1] || '';
-        const lang = (language && language.trim()) ? language.trim() : 'Telugu';
         const queries = [];
-        // 1. Same Movie / Soundtrack Query
-        if (movieName) {
-            queries.push(`${movieName} ${lang} songs`);
-            queries.push(`${movieName} movie soundtrack`);
-        }
-        // 2. Primary Artist in Same Language
+        // 1. Language & Artist Genre Catalog
         if (primaryArtist) {
-            queries.push(`${lang} ${primaryArtist} top hits`);
-            queries.push(`${primaryArtist} ${cleanTitle} kindred melodies`);
+            queries.push(`${lang} ${primaryArtist} Top Hits`);
+            queries.push(`${lang} ${primaryArtist} Best Melodies`);
+            queries.push(`${lang} ${primaryArtist} Chartbusters`);
         }
-        // 3. Secondary Artist / Vocalist
         if (secondaryArtist) {
-            queries.push(`${lang} ${secondaryArtist} songs`);
+            queries.push(`${lang} ${secondaryArtist} Melodies`);
         }
-        // 4. Genre & Kindred Frequencies
-        queries.push(`${lang} ${cleanTitle} related melodies`);
-        queries.push(`${lang} trending chartbusters`);
-        queries.push(`${lang} acoustic top 50`);
+        // 2. Language Genre & Musical Style Anthems (NOT song title words)
+        queries.push(`${lang} Romantic Melodies Chartbusters`);
+        queries.push(`${lang} Superhit Movie Melodies`);
+        queries.push(`${lang} Trending Beats and Hits`);
+        queries.push(`${lang} Acoustic Chill Songs`);
         // Execute multi-query search in parallel across multiple pages
         const searchPromises = [];
         for (const q of queries) {
@@ -306,7 +295,7 @@ export async function getVibeRecommendations(songId, artist, title, language) {
         }
         // Ensure plenty of songs (at least 50 songs)
         if (mergedTracks.length < 50) {
-            const fallbackRes = await searchSongs(`${lang} viral hits top 50`, 1, 40);
+            const fallbackRes = await searchSongs(`${lang} evergreen melodies superhits`, 1, 40);
             for (const track of fallbackRes.results) {
                 if (!seenIds.has(track.id)) {
                     seenIds.add(track.id);
@@ -323,10 +312,8 @@ export async function getVibeRecommendations(songId, artist, title, language) {
 }
 /**
  * Explore feed generation:
- * 1. Top/Start: Popular & Chartbuster Songs across India & preferred languages (Top 30-50 hits)
- * 2. Second: Tailored to User's Complete Listening History (extracts all artists, genres & vibes from user's full history)
- * 3. Third: Your Top Artists in Rotation
- * (Removes clutter / filler static sections)
+ * - NEW USER: Top English Trending hits + Nationwide & Regional Chartbusters (strictly non-repeated, 500x500 covers)
+ * - REGULAR USER: Adapted to user's full history AND liked songs (matching genres, artists, and languages without title repetition)
  */
 export async function getExploreFeed(profile, currentTrack) {
     try {
@@ -334,113 +321,220 @@ export async function getExploreFeed(profile, currentTrack) {
             ? profile.languages
             : ['Telugu', 'Hindi', 'English'];
         const lang1 = userLangs[0] || 'Telugu';
-        // 1. POPULAR CHARTBUSTERS & TRENDING HITS (At the start / top)
-        const [popularIndiaRes, langPopularRes, langHitsRes] = await Promise.all([
-            searchSongs(`Trending India`, 1, 20).catch(() => ({ results: [] })),
-            searchSongs(`${lang1} Trending Hits`, 1, 20).catch(() => ({ results: [] })),
-            searchSongs(`${lang1} Top Hits`, 1, 20).catch(() => ({ results: [] }))
-        ]);
-        const popularTracks = [];
-        const popularSeen = new Set();
-        for (const t of [...(langPopularRes.results || []), ...(langHitsRes.results || []), ...(popularIndiaRes.results || [])]) {
-            if (!popularSeen.has(t.id)) {
-                popularSeen.add(t.id);
-                popularTracks.push(t);
+        const lang2 = userLangs[1] || 'Hindi';
+        const historyList = (profile && profile.history && Array.isArray(profile.history)) ? profile.history : [];
+        const likesList = (profile && profile.likes && Array.isArray(profile.likes)) ? profile.likes : [];
+        const userCombinedTracks = [...likesList, ...historyList];
+        const isNewUser = userCombinedTracks.length === 0;
+        const globalSeenIds = new Set();
+        const sections = [];
+        if (isNewUser) {
+            // ================= NEW USER FEED =================
+            // 1. Global English Trending Hits
+            // 2. Primary Language Trending Hits
+            // 3. Nationwide Indian Blockbusters
+            // 4. Evergreen Masterpiece Melodies
+            // 5. Party Dance & Club Bangers
+            const [englishPopRes, globalTopRes, langHitsRes, langTrendingRes, trendingIndiaRes, hindiMelodyRes, evergreenRes, partyRes] = await Promise.all([
+                searchSongs(`English Pop Hits`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`Global Top 50`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`${lang1} Top Hits`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`${lang1} Trending Hits`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`Trending India`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`Hindi Romantic Melodies`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`${lang1} Evergreen Melodies`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`${lang1} Party Dance Hits`, 1, 25).catch(() => ({ results: [] }))
+            ]);
+            const dedupeTracks = (list, limit = 30) => {
+                const out = [];
+                for (const t of list) {
+                    if (!globalSeenIds.has(t.id)) {
+                        globalSeenIds.add(t.id);
+                        out.push(t);
+                        if (out.length >= limit)
+                            break;
+                    }
+                }
+                return out;
+            };
+            const englishTracks = dedupeTracks([...(englishPopRes.results || []), ...(globalTopRes.results || [])], 30);
+            const regionalTracks = dedupeTracks([...(langHitsRes.results || []), ...(langTrendingRes.results || [])], 30);
+            const nationwideTracks = dedupeTracks([...(trendingIndiaRes.results || []), ...(hindiMelodyRes.results || [])], 30);
+            const classicTracks = dedupeTracks(evergreenRes.results || [], 25);
+            const partyTracks = dedupeTracks(partyRes.results || [], 25);
+            const hero = regionalTracks[0] || englishTracks[0] || nationwideTracks[0] || null;
+            if (englishTracks.length > 0) {
+                sections.push({
+                    id: 'trending_english_hits',
+                    title: '🌐 Global & English Trending Chartbusters',
+                    tagline: 'Billboard Hot 100, viral sensation pop, and international hits',
+                    badge: 'GLOBAL POP',
+                    color: '#38BDF8',
+                    tracks: englishTracks
+                });
+            }
+            if (regionalTracks.length > 0) {
+                sections.push({
+                    id: 'popular_chartbusters',
+                    title: `🔥 All-Time Popular & Trending Hits in ${lang1}`,
+                    tagline: `Top streamed tracks and viral blockbusters in ${lang1}`,
+                    badge: 'HOTTEST HITS',
+                    color: '#F5C542',
+                    tracks: regionalTracks
+                });
+            }
+            if (nationwideTracks.length > 0) {
+                sections.push({
+                    id: 'nationwide_chartbusters',
+                    title: `🌟 Nationwide & Bollywood Blockbusters`,
+                    tagline: 'Mega-streamed anthems, cinematic romantic melodies, and trending tracks',
+                    badge: 'TOP INDIA',
+                    color: '#EC4899',
+                    tracks: nationwideTracks
+                });
+            }
+            if (classicTracks.length > 0) {
+                sections.push({
+                    id: 'evergreen_classics',
+                    title: `💎 All-Time Masterpiece Melodies (${lang1})`,
+                    tagline: 'Unforgettable musical milestones and essential acoustic melodies',
+                    badge: 'LEGENDARY',
+                    color: '#10B981',
+                    tracks: classicTracks
+                });
+            }
+            if (partyTracks.length > 0) {
+                sections.push({
+                    id: 'party_bangers',
+                    title: `🚀 High-Energy Party & Dancefloor Hits`,
+                    tagline: 'Bass-boosted club bangers and celebration soundtracks',
+                    badge: 'PARTY',
+                    color: '#A855F7',
+                    tracks: partyTracks
+                });
+            }
+            return { hero, sections: sections.filter(s => s.tracks && s.tracks.length > 0) };
+        }
+        // ================= REGULAR USER FEED =================
+        // Extract unique artists, languages, and genre patterns from BOTH history and likes
+        const artistCounts = {};
+        for (const item of userCombinedTracks) {
+            if (item.artist && item.artist !== 'Unknown Artist') {
+                const parts = item.artist.split(/[,&/|]/).map((p) => p.trim());
+                parts.forEach((p) => {
+                    if (p.length > 1) {
+                        artistCounts[p] = (artistCounts[p] || 0) + 1;
+                    }
+                });
             }
         }
-        const hero = (popularTracks.length > 0) ? popularTracks[0] : null;
-        const sections = [];
-        // Section 1: 🔥 Popular & Chartbuster Hits (START OF EXPLORE FEED)
+        const topArtists = Object.entries(artistCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(e => e[0])
+            .slice(0, 5);
+        // 1. Fetch Popular Hits (at the start)
+        const [popularRes, langPopRes, langHitsRes] = await Promise.all([
+            searchSongs(`Trending India`, 1, 25).catch(() => ({ results: [] })),
+            searchSongs(`${lang1} Trending Hits`, 1, 25).catch(() => ({ results: [] })),
+            searchSongs(`${lang1} Top Hits`, 1, 25).catch(() => ({ results: [] }))
+        ]);
+        const dedupeTracks = (list, limit = 30) => {
+            const out = [];
+            for (const t of list) {
+                if (!globalSeenIds.has(t.id)) {
+                    globalSeenIds.add(t.id);
+                    out.push(t);
+                    if (out.length >= limit)
+                        break;
+                }
+            }
+            return out;
+        };
+        const popularTracks = dedupeTracks([...(langPopRes.results || []), ...(langHitsRes.results || []), ...(popularRes.results || [])], 30);
+        const hero = popularTracks[0] || null;
         sections.push({
             id: 'popular_chartbusters',
             title: `🔥 All-Time Popular & Trending Chartbusters`,
             tagline: `Nationwide & ${lang1} chart-topping blockbusters with millions of streams`,
             badge: 'HOTTEST HITS',
             color: '#F5C542',
-            tracks: popularTracks.slice(0, 30)
+            tracks: popularTracks
         });
-        // 2. TAILORED TO USER'S ENTIRE LISTENING HISTORY
-        const historyList = (profile && profile.history && profile.history.length > 0)
-            ? profile.history
-            : [];
-        let historyRecommendations = [];
-        let topArtistsInHistory = [];
-        if (historyList.length > 0) {
-            const artistCounts = {};
-            const historyTitles = [];
-            for (const item of historyList) {
-                if (item.artist && item.artist !== 'Unknown Artist') {
-                    const parts = item.artist.split(/[,&/|]/).map((p) => p.trim());
-                    parts.forEach((p) => {
-                        if (p.length > 1) {
-                            artistCounts[p] = (artistCounts[p] || 0) + 1;
-                        }
-                    });
-                }
-                if (item.title) {
-                    historyTitles.push(item.title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim());
-                }
-            }
-            topArtistsInHistory = Object.entries(artistCounts)
-                .sort((a, b) => b[1] - a[1])
-                .map(e => e[0])
-                .slice(0, 4);
-            // Query recommendations for top artists and recent history songs
-            const historyQueries = [];
-            topArtistsInHistory.forEach(art => {
-                historyQueries.push(`${lang1} ${art} best songs`);
-                historyQueries.push(`${art} top melodies`);
-            });
-            if (historyTitles.length > 0) {
-                const sampleTitle = historyTitles[0];
-                historyQueries.push(`${lang1} ${sampleTitle} kindred melodies`);
-            }
-            const histQueryPromises = historyQueries.map(q => searchSongs(q, 1, 15).catch(() => ({ results: [] })));
-            const histQueryResults = await Promise.all(histQueryPromises);
-            const histSeen = new Set();
-            for (const res of histQueryResults) {
-                for (const t of res.results) {
-                    if (!histSeen.has(t.id) && !popularSeen.has(t.id)) {
-                        histSeen.add(t.id);
-                        historyRecommendations.push(t);
-                    }
-                }
+        // 2. Tailored to User's History & Liked Songs Genre / Artist Clusters
+        const historyQueries = [];
+        topArtists.slice(0, 3).forEach(art => {
+            historyQueries.push(`${lang1} ${art} Best Melodies`);
+            historyQueries.push(`${art} Superhit Songs`);
+        });
+        historyQueries.push(`${lang1} Romantic Melodies`);
+        historyQueries.push(`${lang1} Acoustic Chill`);
+        historyQueries.push(`${lang1} Movie Soundtracks`);
+        const histResultsArrays = await Promise.all(historyQueries.map(q => searchSongs(q, 1, 20).catch(() => ({ results: [] }))));
+        const rawHistoryTracks = [];
+        for (const res of histResultsArrays) {
+            for (const t of res.results || []) {
+                rawHistoryTracks.push(t);
             }
         }
-        // Fallback if no history yet or few recommendations
-        if (historyRecommendations.length < 15) {
-            const backupRes = await searchSongs(`${lang1} evergreen melodies superhits`, 1, 30);
-            for (const t of backupRes.results) {
-                if (!popularSeen.has(t.id)) {
-                    historyRecommendations.push(t);
-                }
-            }
-        }
-        // Section 2: ✨ Based on Your Entire Listening History
-        sections.push({
-            id: 'history_based_recommendations',
-            title: (historyList.length > 0)
-                ? `✨ Tailored to Your Complete Listening History`
-                : `✨ Curated Melodies for Your Music Taste`,
-            tagline: (topArtistsInHistory.length > 0)
-                ? `Derived from your rotation of ${topArtistsInHistory.join(', ')} & kindred frequencies`
-                : `Personalized acoustic suggestions matching your preferred languages`,
-            badge: 'FOR YOU',
-            color: '#22D3EE',
-            tracks: historyRecommendations.slice(0, 30)
-        });
-        // Section 3: 🎤 Top Artists In Rotation
-        const featuredArtist = (topArtistsInHistory.length > 0) ? topArtistsInHistory[0] : (lang1 === 'Telugu' ? 'Sid Sriram' : 'Arijit Singh');
-        const artistRes = await searchSongs(`${featuredArtist} ${lang1} best melodies`, 1, 20);
-        if (artistRes.results && artistRes.results.length > 0) {
+        const historyPersonalizedTracks = dedupeTracks(rawHistoryTracks, 30);
+        if (historyPersonalizedTracks.length > 0) {
             sections.push({
-                id: 'top_artist_spotlight',
-                title: `🎤 Spotlight: Best of ${featuredArtist}`,
-                tagline: `Signature hits and unforgettable vocal masterpieces`,
-                badge: 'ARTIST ROTATION',
-                color: '#A855F7',
-                tracks: artistRes.results
+                id: 'history_based_recommendations',
+                title: `✨ Tailored to Your Favorite Songs & History`,
+                tagline: (topArtists.length > 0)
+                    ? `Harmonized from your rotation of ${topArtists.slice(0, 3).join(', ')} and kindred melodies`
+                    : `Curated genre acoustic suggestions in ${lang1}`,
+                badge: 'FOR YOU',
+                color: '#22D3EE',
+                tracks: historyPersonalizedTracks
             });
+        }
+        // 3. Artist Spotlight
+        if (topArtists.length > 0) {
+            const featuredArtist = topArtists[0];
+            const [artRes1, artRes2] = await Promise.all([
+                searchSongs(`${featuredArtist} Hits`, 1, 25).catch(() => ({ results: [] })),
+                searchSongs(`${featuredArtist} ${lang1} Songs`, 1, 25).catch(() => ({ results: [] }))
+            ]);
+            const artistTracks = dedupeTracks([...(artRes1.results || []), ...(artRes2.results || [])], 25);
+            if (artistTracks.length > 0) {
+                sections.push({
+                    id: 'top_artist_spotlight',
+                    title: `🎤 Spotlight: Best of ${featuredArtist}`,
+                    tagline: `Signature masterworks and timeless vocal classics`,
+                    badge: 'ARTIST ROTATION',
+                    color: '#A855F7',
+                    tracks: artistTracks
+                });
+            }
+        }
+        // 4. Regional Evergreen Classics
+        const classicRes = await searchSongs(`${lang1} Evergreen Melodies`, 1, 25).catch(() => ({ results: [] }));
+        const classicTracks = dedupeTracks(classicRes.results || [], 25);
+        if (classicTracks.length > 0) {
+            sections.push({
+                id: 'regional_classics',
+                title: `💎 ${lang1} Melody Masterpieces & Soundtracks`,
+                tagline: `Essential melodies and immortal classics in ${lang1}`,
+                badge: 'MASTERPIECES',
+                color: '#10B981',
+                tracks: classicTracks
+            });
+        }
+        // 5. Secondary Language / Global Spotlight
+        if (lang2 && lang2 !== lang1) {
+            const lang2Res = await searchSongs(`${lang2} Top Melodies Chartbusters`, 1, 25).catch(() => ({ results: [] }));
+            const lang2Tracks = dedupeTracks(lang2Res.results || [], 25);
+            if (lang2Tracks.length > 0) {
+                sections.push({
+                    id: 'lang2_spotlight',
+                    title: `🌟 ${lang2} Chartbusters & Melodies`,
+                    tagline: `Popular music and melodic masterpieces in ${lang2}`,
+                    badge: lang2.toUpperCase(),
+                    color: '#F97316',
+                    tracks: lang2Tracks
+                });
+            }
         }
         return { hero, sections: sections.filter(s => s.tracks && s.tracks.length > 0) };
     }

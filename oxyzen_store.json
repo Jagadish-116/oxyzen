@@ -47,6 +47,70 @@
   "playlists": [],
   "history": [
     {
+      "id": "A7AAUlh8",
+      "videoId": "A7AAUlh8",
+      "title": "Nijame Ne Chebutunna",
+      "artist": "Sid Sriram",
+      "album": "Ooru Peru Bhairavakona",
+      "image": "https://c.saavncdn.com/000/Ooru-Peru-Bhairavakona-Telugu-2023-20240215171825-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/000/Ooru-Peru-Bhairavakona-Telugu-2023-20240215171825-500x500.jpg",
+      "duration": "3:34",
+      "duration_sec": 214,
+      "duration_formatted": "3:34",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/000/507ac0876cbea201b822123ed81ea3fc_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/000/507ac0876cbea201b822123ed81ea3fc_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/000/507ac0876cbea201b822123ed81ea3fc_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/000/507ac0876cbea201b822123ed81ea3fc_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/000/507ac0876cbea201b822123ed81ea3fc_320.mp4",
+      "language": "telugu",
+      "year": "2023",
+      "has_lyrics": true,
+      "played_at": 1788359469.595
+    },
+    {
+      "id": "yDqhnYdK",
+      "videoId": "yDqhnYdK",
+      "title": "Emo Emo (From \"Raahu\")",
+      "artist": "Sid Sriram, Praveen Lakkaraju, Srinivasa Mouli",
+      "album": "Emo Emo (From \"Raahu\")",
+      "image": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/637/Emo-Emo-From-Raahu-Telugu-2019-20251027141259-500x500.jpg",
+      "duration": "4:02",
+      "duration_sec": 242,
+      "duration_formatted": "4:02",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/637/cf5beb42e7a18d6e273799c3a44eecfa_320.mp4",
+      "language": "telugu",
+      "year": "2019",
+      "has_lyrics": true,
+      "played_at": 1788359441.258
+    },
+    {
       "id": "qbQ0IFxj",
       "videoId": "qbQ0IFxj",
       "title": "Yeshanagula (From \"The Paradise\") (Telugu)",

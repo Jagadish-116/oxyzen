@@ -71,6 +71,24 @@ export class SyncRoom {
         }
         return removed;
     }
+    promoteToAdmin(userId) {
+        const listener = this.listeners.get(userId);
+        if (!listener)
+            return false;
+        this.admins.add(userId);
+        listener.is_admin = true;
+        return true;
+    }
+    demoteFromAdmin(userId) {
+        if (userId === this.host_id)
+            return false; // Host cannot be demoted
+        const listener = this.listeners.get(userId);
+        if (!listener)
+            return false;
+        this.admins.delete(userId);
+        listener.is_admin = false;
+        return true;
+    }
     updatePlayback(track, position, isPlaying) {
         if (track)
             this.current_track = track;

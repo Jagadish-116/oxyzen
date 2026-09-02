@@ -278,6 +278,13 @@ class OxyzenAudioEngine {
   // -------------------------------------------------------------
   // 10-BAND PARAMETRIC EQUALIZER
   // -------------------------------------------------------------
+  getEqBandGain(index) {
+    if (index >= 0 && index < this.eqGains.length) {
+      return this.eqGains[index] || 0;
+    }
+    return 0;
+  }
+
   setEqBandGain(index, gainDb) {
     if (index >= 0 && index < this.eqFilters.length) {
       const val = Math.max(-12, Math.min(12, gainDb));

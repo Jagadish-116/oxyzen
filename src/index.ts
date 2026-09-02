@@ -439,6 +439,9 @@ app.all('/api/explore', async (c) => {
       if (body.history && Array.isArray(body.history)) {
         customHistory = body.history;
       }
+      if (body.likes && Array.isArray(body.likes)) {
+        (profile as any).likes = body.likes;
+      }
       if (body.currentTrack) {
         currentTrack = body.currentTrack;
       }

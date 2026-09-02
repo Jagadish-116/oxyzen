@@ -1051,11 +1051,13 @@ class OxyzenApp {
   async refreshPersonalizedSections() {
     try {
       const history = this.storage.getHistory() || [];
+      const likes = this.storage.getLikedSongs() || [];
       const languages = this.userProfile.languages || ["Telugu", "Hindi", "English"];
       
       const payload = {
         languages,
         history,
+        likes,
         currentTrack: this.currentTrack ? {
           id: this.currentTrack.id,
           title: this.currentTrack.title,
@@ -2633,17 +2635,54 @@ class OxyzenApp {
 
     row.innerHTML = listeners.map(l => {
       const isHost = l.is_host;
-      const isAdmin = l.is_admin;
+      const isAdmin = l.is_admin && !isHost;
       const isMe = (l.id === this.sync.userId);
 
       return `
         <div class="sync-listener-chip ${isHost ? 'host' : ''} ${isAdmin ? 'admin' : ''}" data-user-id="${l.id}">
           <span class="listener-avatar">${l.avatar || '🎧'}</span>
-          <span class="listener-name">${this.escapeHTML(l.name)} ${isMe ? '(You)' : ''}</span>
-          ${isHost ? '<span class="listener-role-badge">HOST</span>' : (isAdmin ? '<span class="listener-role-badge">ADMIN</span>' : '')}
+          <div class="listener-info">
+            <span class="listener-name">${this.escapeHTML(l.name)} ${isMe ? '(You)' : ''}</span>
+            <span class="listener-role-badge ${isHost ? 'role-host' : (isAdmin ? 'role-admin' : 'role-listener')}">
+              ${isHost ? '👑 HOST' : (isAdmin ? '⚡ SUB-ADMIN' : '🎧 LISTENER')}
+            </span>
+          </div>
+          ${(this.sync.isHost && !isHost && !isMe) ? `
+            <div class="listener-admin-actions">
+              ${isAdmin ? `
+                <button class="btn-demote-admin" data-action="demote-admin" data-uid="${l.id}" title="Remove Sub-Admin role">✕ Demote</button>
+              ` : `
+                <button class="btn-promote-admin" data-action="promote-admin" data-uid="${l.id}" title="Promote to Sub-Admin (Can skip & queue songs)">⚡ Promote</button>
+              `}
+            </div>
+          ` : ''}
         </div>
       `;
     }).join("");
+
+    if (this.sync.isHost) {
+      row.querySelectorAll('[data-action="promote-admin"]').forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const uid = btn.dataset.uid;
+          if (uid) {
+            this.sync.promoteAdmin(uid);
+            this.showToast("⚡ Promoted user to Sub-Admin!");
+          }
+        });
+      });
+
+      row.querySelectorAll('[data-action="demote-admin"]').forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const uid = btn.dataset.uid;
+          if (uid) {
+            this.sync.demoteAdmin(uid);
+            this.showToast("User demoted from Sub-Admin.");
+          }
+        });
+      });
+    }
   }
 
   renderSoundSyncRequests() {
@@ -2805,23 +2844,58 @@ class OxyzenApp {
     const list = document.getElementById("sync-party-suggestions-list");
     if (!list) return;
 
-    const tracks = (this.vibeTracks || []).slice(0, 6);
+    const tracks = (this.vibeTracks || []).slice(0, 8);
     if (tracks.length === 0) {
-      list.innerHTML = `<div style="color: var(--silver-muted); font-size: 12px; grid-column: 1/-1;">Play a song to get live party recommendations.</div>`;
+      list.innerHTML = `<div style="color: var(--silver-muted); font-size: 12px; padding: 10px 0;">Play a track to get live party recommendations.</div>`;
       return;
     }
 
-    list.innerHTML = tracks.map(t => this.renderMusicCardHTML(t)).join("");
-    list.querySelectorAll(".music-card").forEach((card, idx) => {
-      card.addEventListener("click", () => {
-        const track = tracks[idx];
-        if (track) {
-          if (this.sync.isHost || this.sync.isAdmin) {
-            this.playTrack(track);
-          } else {
-            this.sync.requestSong(track);
-            this.showToast(`🙋‍♂️ Requested "${track.title}"`);
-          }
+    const canControl = (this.sync.isHost || this.sync.isAdmin);
+
+    list.innerHTML = tracks.map((t, idx) => `
+      <div class="sync-suggestion-item" data-idx="${idx}">
+        <img src="${t.image || t.thumbnail || '/static/assets/logo.png'}" alt="Cover" class="sync-sugg-img">
+        <div class="sync-sugg-meta">
+          <div class="sync-sugg-title">${this.escapeHTML(t.title)}</div>
+          <div class="sync-sugg-artist">${this.escapeHTML(t.artist)}</div>
+        </div>
+        <div class="sync-sugg-actions">
+          ${canControl ? `
+            <button class="btn-sugg-play" data-action="play-sugg" data-idx="${idx}" title="Play Now">▶</button>
+            <button class="btn-sugg-queue" data-action="queue-sugg" data-idx="${idx}" title="Add to Queue">➕</button>
+          ` : `
+            <button class="btn-sugg-request" data-action="req-sugg" data-idx="${idx}" title="Request Track">🙋‍♂️</button>
+          `}
+        </div>
+      </div>
+    `).join("");
+
+    list.querySelectorAll('[data-action="play-sugg"]').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const t = tracks[parseInt(btn.dataset.idx)];
+        if (t) this.playTrack(t);
+      });
+    });
+
+    list.querySelectorAll('[data-action="queue-sugg"]').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const t = tracks[parseInt(btn.dataset.idx)];
+        if (t) {
+          this.sync.broadcastAddQueue(t);
+          this.showToast(`➕ Queued "${t.title}"`);
+        }
+      });
+    });
+
+    list.querySelectorAll('[data-action="req-sugg"]').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const t = tracks[parseInt(btn.dataset.idx)];
+        if (t) {
+          this.sync.requestSong(t);
+          this.showToast(`🙋‍♂️ Requested "${t.title}"`);
         }
       });
     });
@@ -2927,13 +3001,117 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // EQUALIZER STUDIO UI
+  // EQUALIZER STUDIO UI & RESPONSE CURVE VISUALIZER
   // -------------------------------------------------------------
   setupEqualizerUI() {
     const slidersContainer = document.getElementById("eq-sliders-container");
+    const modal = document.getElementById("equalizer-modal");
+    const closeBtn = document.getElementById("eq-close-btn");
+    const openBtn = document.getElementById("eq-open-btn");
+    const resetBtn = document.getElementById("eq-reset-btn");
+    const spatialBtn = document.getElementById("eq-spatial-toggle-btn");
+    const presetBadge = document.getElementById("eq-active-preset-badge");
+    const curveCanvas = document.getElementById("eq-curve-canvas");
+
     if (!slidersContainer || !this.audio) return;
 
+    if (closeBtn && modal) {
+      closeBtn.addEventListener("click", () => modal.classList.remove("active"));
+    }
+    if (openBtn && modal) {
+      openBtn.addEventListener("click", () => {
+        modal.classList.add("active");
+        drawCurve();
+      });
+    }
+
     const freqs = this.audio.eqFrequencies;
+
+    // Draw Live Acoustic Response Curve
+    const drawCurve = () => {
+      if (!curveCanvas) return;
+      const ctx = curveCanvas.getContext("2d");
+      if (!ctx) return;
+
+      const w = curveCanvas.width;
+      const h = curveCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw Center 0dB Reference Grid
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const gains = freqs.map((_, i) => this.audio.getEqBandGain ? this.audio.getEqBandGain(i) : 0);
+      const points = [];
+
+      // Edge Padding Points
+      points.push({ x: 0, y: h / 2 - (gains[0] / 12) * (h / 2 - 12) });
+
+      freqs.forEach((_, i) => {
+        const x = ((i + 0.5) / freqs.length) * w;
+        const gain = gains[i] || 0;
+        const y = h / 2 - (gain / 12) * (h / 2 - 12);
+        points.push({ x, y });
+      });
+
+      points.push({ x: w, y: h / 2 - (gains[gains.length - 1] / 12) * (h / 2 - 12) });
+
+      // Draw Spline Curve Fill
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "rgba(245, 197, 66, 0.35)");
+      grad.addColorStop(0.5, "rgba(34, 211, 238, 0.15)");
+      grad.addColorStop(1, "rgba(10, 10, 16, 0.0)");
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length - 1; i++) {
+        const xc = (points[i].x + points[i + 1].x) / 2;
+        const yc = (points[i].y + points[i + 1].y) / 2;
+        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Draw Glowing Stroke Curve
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length - 1; i++) {
+        const xc = (points[i].x + points[i + 1].x) / 2;
+        const yc = (points[i].y + points[i + 1].y) / 2;
+        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+      ctx.strokeStyle = "#F5C542";
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = "rgba(245, 197, 66, 0.6)";
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Draw Node Dots
+      for (let i = 1; i <= freqs.length; i++) {
+        const pt = points[i];
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#22D3EE";
+        ctx.shadowColor = "#22D3EE";
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    };
+
+    // Render 10 Precision Vertical Faders
     slidersContainer.innerHTML = freqs.map((f, i) => {
       const label = f >= 1000 ? `${f / 1000}k` : `${f}`;
       return `
@@ -2951,7 +3129,13 @@ class OxyzenApp {
         const gain = parseFloat(e.target.value);
         this.audio.setEqBandGain(idx, gain);
         const label = document.getElementById(`eq-val-${idx}`);
-        if (label) label.innerText = `${gain > 0 ? '+' : ''}${gain}dB`;
+        if (label) {
+          label.innerText = `${gain > 0 ? '+' : ''}${gain}dB`;
+          label.style.color = gain > 0 ? 'var(--gold-accent)' : (gain < 0 ? 'var(--accent-cyan)' : 'var(--silver-muted)');
+        }
+        if (presetBadge) presetBadge.innerText = "PRESET: CUSTOM USER EQ";
+        document.querySelectorAll(".eq-preset-chip").forEach(c => c.classList.remove("active"));
+        drawCurve();
       });
     });
 
@@ -2965,11 +3149,46 @@ class OxyzenApp {
           const slider = slidersContainer.querySelector(`[data-index="${i}"]`);
           if (slider) slider.value = g;
           const label = document.getElementById(`eq-val-${i}`);
-          if (label) label.innerText = `${g > 0 ? '+' : ''}${g}dB`;
+          if (label) {
+            label.innerText = `${g > 0 ? '+' : ''}${g}dB`;
+            label.style.color = g > 0 ? 'var(--gold-accent)' : (g < 0 ? 'var(--accent-cyan)' : 'var(--silver-muted)');
+          }
         });
-        this.showToast(`🎛️ Equalizer Preset: ${chip.innerText}`);
+        if (presetBadge) presetBadge.innerText = `PRESET: ${chip.innerText.toUpperCase()}`;
+        drawCurve();
+        this.showToast(`🎛️ EQ Preset Applied: ${chip.innerText}`);
       });
     });
+
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        const flatGains = this.audio.applyEqPreset("flat");
+        flatGains.forEach((g, i) => {
+          const slider = slidersContainer.querySelector(`[data-index="${i}"]`);
+          if (slider) slider.value = 0;
+          const label = document.getElementById(`eq-val-${i}`);
+          if (label) {
+            label.innerText = "0dB";
+            label.style.color = "var(--silver-muted)";
+          }
+        });
+        document.querySelectorAll(".eq-preset-chip").forEach(c => c.classList.toggle("active", c.dataset.preset === "flat"));
+        if (presetBadge) presetBadge.innerText = "PRESET: FLAT STUDIO";
+        drawCurve();
+        this.showToast("🔄 Equalizer Reset to Flat Master Profile");
+      });
+    }
+
+    if (spatialBtn) {
+      spatialBtn.addEventListener("click", () => {
+        const active = this.toggle8DMode();
+        spatialBtn.innerText = active ? "Disable 8D Spatial" : "Enable 8D Spatial";
+        spatialBtn.classList.toggle("btn-gold-action", active);
+      });
+    }
+
+    // Initial curve draw
+    setTimeout(drawCurve, 150);
   }
 
   // -------------------------------------------------------------

@@ -105,6 +105,11 @@ class OxyzenStorage {
     try {
       localStorage.setItem(this.STORAGE_KEYS.LIKES, JSON.stringify(likes));
       this.dispatchStorageEvent("likes", { isLiked, trackId: id, total: likes.length });
+      fetch("/api/library/likes/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(track)
+      }).catch(() => {});
     } catch (e) {
       console.warn("Storage quota exceeded or error saving like:", e);
     }
@@ -151,6 +156,13 @@ class OxyzenStorage {
     playlists.unshift(newPlaylist);
     localStorage.setItem(this.STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
     this.dispatchStorageEvent("playlists", { action: "create", playlist: newPlaylist });
+
+    fetch("/api/library/playlists/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newPlaylist)
+    }).catch(() => {});
+
     return newPlaylist;
   }
 
@@ -176,6 +188,7 @@ class OxyzenStorage {
     if (playlists.length !== initialLen) {
       localStorage.setItem(this.STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
       this.dispatchStorageEvent("playlists", { action: "delete", playlistId });
+      fetch(`/api/library/playlists/${playlistId}`, { method: "DELETE" }).catch(() => {});
       return true;
     }
     return false;
@@ -222,6 +235,13 @@ class OxyzenStorage {
 
     localStorage.setItem(this.STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
     this.dispatchStorageEvent("playlists", { action: "add_track", playlistId, track: cleanTrack });
+
+    fetch(`/api/library/playlists/${playlistId}/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cleanTrack)
+    }).catch(() => {});
+
     return true;
   }
 
@@ -235,6 +255,8 @@ class OxyzenStorage {
 
     localStorage.setItem(this.STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
     this.dispatchStorageEvent("playlists", { action: "remove_track", playlistId, trackId });
+
+    fetch(`/api/library/playlists/${playlistId}/track/${trackId}`, { method: "DELETE" }).catch(() => {});
     return true;
   }
 
@@ -285,12 +307,18 @@ class OxyzenStorage {
     try {
       localStorage.setItem(this.STORAGE_KEYS.HISTORY, JSON.stringify(history));
       this.dispatchStorageEvent("history", { track: cleanTrack, count: history.length });
+      fetch("/api/library/history/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanTrack)
+      }).catch(() => {});
     } catch (e) {}
   }
 
   clearHistory() {
     localStorage.setItem(this.STORAGE_KEYS.HISTORY, JSON.stringify([]));
     this.dispatchStorageEvent("history", { action: "clear", count: 0 });
+    fetch("/api/library/history/clear", { method: "POST" }).catch(() => {});
   }
 
   // -------------------------------------------------------------
@@ -349,6 +377,59 @@ class OxyzenStorage {
     URL.revokeObjectURL(url);
   }
 
+  exportPlaylistToFile(playlistId) {
+    const pl = this.getPlaylist(playlistId);
+    if (!pl) return false;
+
+    const payload = {
+      type: "oxyzen_playlist",
+      version: "2.0",
+      exported_at: new Date().toISOString(),
+      playlist: {
+        id: pl.id,
+        name: pl.name,
+        description: pl.description || "",
+        cover_url: pl.cover_url || "",
+        tracks: pl.tracks || []
+      }
+    };
+
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = pl.name.replace(/[^a-zA-Z0-9_-]/g, "_");
+    a.href = url;
+    a.download = `oxyzen_playlist_${safeName}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return true;
+  }
+
+  importSinglePlaylist(playlistObj) {
+    if (!playlistObj || !playlistObj.name) {
+      throw new Error("Invalid playlist data");
+    }
+
+    const currentPls = this.getPlaylists();
+    const newId = `pl_imported_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newPl = {
+      id: newId,
+      name: playlistObj.name,
+      description: playlistObj.description || "",
+      cover_url: playlistObj.cover_url || (playlistObj.tracks?.[0]?.image || playlistObj.tracks?.[0]?.thumbnail || ""),
+      tracks: Array.isArray(playlistObj.tracks) ? playlistObj.tracks : [],
+      created_at: Date.now()
+    };
+
+    currentPls.push(newPl);
+    localStorage.setItem(this.STORAGE_KEYS.PLAYLISTS, JSON.stringify(currentPls));
+    this.dispatchStorageEvent("playlists", { action: "import", playlist: newPl });
+    return newPl;
+  }
+
   importBackupData(jsonStringOrObject, mode = "merge") {
     try {
       let data = jsonStringOrObject;
@@ -357,7 +438,19 @@ class OxyzenStorage {
       }
 
       if (!data || typeof data !== "object") {
-        throw new Error("Invalid backup format: root must be a JSON object.");
+        throw new Error("Invalid format: root must be a JSON object.");
+      }
+
+      // Handle individual Oxyzen Playlist file
+      if (data.type === "oxyzen_playlist" && data.playlist) {
+        const imported = this.importSinglePlaylist(data.playlist);
+        return { success: true, message: `Imported playlist "${imported.name}" with ${imported.tracks.length} tracks!`, playlist: imported };
+      }
+
+      // Handle direct playlist object
+      if (data.name && Array.isArray(data.tracks) && !data.likes && !data.playlists) {
+        const imported = this.importSinglePlaylist(data);
+        return { success: true, message: `Imported playlist "${imported.name}" with ${imported.tracks.length} tracks!`, playlist: imported };
       }
 
       // 1. Likes
@@ -432,6 +525,68 @@ class OxyzenStorage {
       console.error("Failed to import Oxyzen backup:", err);
       return { success: false, message: err.message || "Failed to parse backup JSON." };
     }
+  }
+
+  // -------------------------------------------------------------
+  // USER PROFILE & RANDOM UNIQUE PERSONA GENERATION
+  // -------------------------------------------------------------
+  generateUniqueUsername() {
+    const adjectives = [
+      "Acoustic", "Sonic", "Harmonic", "Astral", "Velvet", "Neon", "Cosmic", "Golden",
+      "Midnight", "Crystal", "Ethereal", "Vibrant", "Quantum", "Melodic", "Celestial",
+      "Echo", "Silken", "Radiant", "Zenith", "Prism", "Electric", "Serene", "Luminous",
+      "Infinite", "Hyper", "Silver", "Starlight", "Solar", "Deep", "Vintage"
+    ];
+    const nouns = [
+      "Voyager", "Nomad", "Maestro", "Pulse", "Rhythm", "Cadence", "Groove", "Wave",
+      "Aura", "Harmonics", "Virtuoso", "Soundscape", "Chime", "Drifter", "Nexus", "Symphony",
+      "Beats", "Acoustics", "Cipher", "Melody", "Resonance", "Phantom", "Orbit", "Echo"
+    ];
+    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const num = Math.floor(100 + Math.random() * 900);
+    return `${adj}${noun}_${num}`;
+  }
+
+  getUserProfile() {
+    let name = localStorage.getItem("oxyzen_user_name");
+    if (!name || name === "Oxyzen Listener" || name === "Guest" || name === "Listener") {
+      name = this.generateUniqueUsername();
+      localStorage.setItem("oxyzen_user_name", name);
+      fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, username: name })
+      }).catch(() => {});
+    }
+
+    const avatar = localStorage.getItem("oxyzen_user_avatar") || "👑";
+    let languages = ["English", "Telugu", "Hindi"];
+    try {
+      const storedLangs = localStorage.getItem("oxyzen_user_languages");
+      if (storedLangs) languages = JSON.parse(storedLangs);
+    } catch (e) {}
+
+    return { name, avatar, languages };
+  }
+
+  saveUserProfile(profile = {}) {
+    if (profile.name) {
+      localStorage.setItem("oxyzen_user_name", profile.name);
+    }
+    if (profile.avatar) {
+      localStorage.setItem("oxyzen_user_avatar", profile.avatar);
+    }
+    if (profile.languages && Array.isArray(profile.languages)) {
+      localStorage.setItem("oxyzen_user_languages", JSON.stringify(profile.languages));
+    }
+    this.dispatchStorageEvent("profile", profile);
+
+    fetch("/api/user/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile)
+    }).catch(() => {});
   }
 
   // -------------------------------------------------------------

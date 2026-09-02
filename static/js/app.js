@@ -39,7 +39,7 @@ class OxyzenApp {
     this.userProfile = {
       name: localStorage.getItem("oxyzen_user_name") || "Oxyzen Listener",
       avatar: localStorage.getItem("oxyzen_user_avatar") || "👑",
-      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["Telugu", "Hindi", "English"]'),
+      languages: JSON.parse(localStorage.getItem("oxyzen_user_languages") || '["Hindi", "English"]'),
       audio_quality: localStorage.getItem("oxyzen_audio_quality") || "320k",
       theme: localStorage.getItem("oxyzen_theme") || "gold"
     };
@@ -587,6 +587,8 @@ class OxyzenApp {
         if (e.target === this.eqModal) this.eqModal.classList.remove("active");
       });
     }
+
+    this.setupPlaylistImportListeners();
   }
 
   // -------------------------------------------------------------
@@ -595,16 +597,27 @@ class OxyzenApp {
   switchView(viewName) {
     this.activeView = viewName;
     document.querySelectorAll(".nav-item[data-view], .mobile-nav-tab[data-view]").forEach(item => {
-      item.classList.toggle("active", item.dataset.view === viewName);
+      const isMatch = item.dataset.view === viewName || 
+        (item.classList.contains("mobile-nav-tab") && item.dataset.view === "collection" && ["liked", "playlists", "playlist-detail", "history", "collection"].includes(viewName));
+      item.classList.toggle("active", isMatch);
     });
     this.pageViews.forEach(view => {
       view.classList.toggle("active", view.id === `view-${viewName}`);
+      view.scrollTop = 0;
     });
+
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    const mainContent = document.getElementById("main-content");
+    if (mainContent) mainContent.scrollTop = 0;
+    const targetView = document.getElementById(`view-${viewName}`);
+    if (targetView) targetView.scrollTop = 0;
 
     if (viewName === "explore") {
       this.refreshPersonalizedSections();
     } else if (viewName === "moods") {
       this.loadMoodCategories();
+    } else if (viewName === "collection") {
+      this.loadCollectionView();
     } else if (viewName === "liked") {
       this.loadLikedView();
     } else if (viewName === "playlists") {
@@ -648,6 +661,31 @@ class OxyzenApp {
         }
       }
 
+      // Server DB Hydration if local storage was empty
+      try {
+        const [likesRes, plRes] = await Promise.all([
+          fetch(`${API_BASE}/api/library/likes`),
+          fetch(`${API_BASE}/api/library/playlists`)
+        ]);
+        if (likesRes.ok) {
+          const lData = await likesRes.json();
+          if (Array.isArray(lData.likes) && lData.likes.length > 0 && localLikes.length === 0) {
+            localStorage.setItem("oxyzen_liked_tracks", JSON.stringify(lData.likes));
+            this.likedIds = new Set(lData.likes.map(t => t.id || t.videoId));
+            this.updateLikesBadge(lData.likes.length);
+            this.registerTracks(lData.likes);
+          }
+        }
+        if (plRes.ok) {
+          const pData = await plRes.json();
+          if (Array.isArray(pData.playlists) && pData.playlists.length > 0 && this.playlists.length === 0) {
+            localStorage.setItem("oxyzen_custom_playlists", JSON.stringify(pData.playlists));
+            this.playlists = pData.playlists;
+            this.updatePlaylistsBadge(this.playlists.length);
+          }
+        }
+      } catch (e) {}
+
       this.refreshPersonalizedSections();
     } catch (err) {
       console.warn("Error loading initial data:", err);
@@ -658,11 +696,18 @@ class OxyzenApp {
   // USER PROFILE & PREFERENCES
   // -------------------------------------------------------------
   async loadUserProfile() {
+    const localProfile = this.storage.getUserProfile();
+    this.userProfile = { ...this.userProfile, ...localProfile };
     try {
       const res = await fetch(`${API_BASE}/api/user/profile`);
       const data = await res.json();
       if (data && data.profile) {
-        this.userProfile = { ...this.userProfile, ...data.profile };
+        const serverName = data.profile.name || data.profile.username;
+        if (serverName && serverName !== "Oxyzen Listener" && serverName !== "Guest") {
+          this.userProfile = { ...this.userProfile, ...data.profile, name: serverName };
+        } else {
+          this.userProfile = { ...this.userProfile, ...data.profile, name: localProfile.name };
+        }
       }
     } catch (e) {}
     this.updateProfileUI();
@@ -670,7 +715,7 @@ class OxyzenApp {
 
   updateProfileUI() {
     const avatar = this.userProfile.avatar || "👑";
-    const name = this.userProfile.name || "Oxyzen Listener";
+    const name = this.userProfile.name || (this.storage ? this.storage.getUserProfile().name : "AcousticVoyager_500");
     const langs = this.userProfile.languages || ["Telugu", "Hindi", "English"];
 
     // Sidebar
@@ -686,6 +731,16 @@ class OxyzenApp {
     const topName = document.getElementById("topbar-username");
     if (topAvatar) topAvatar.innerText = avatar;
     if (topName) topName.innerText = name.split(" ")[0] || name;
+
+    // SoundSync Inputs
+    const hostInput = document.getElementById("sync-host-name-input");
+    if (hostInput && (!hostInput.value || hostInput.value === "DJ Master")) {
+      hostInput.value = name;
+    }
+    const listenerInput = document.getElementById("sync-listener-name-input");
+    if (listenerInput && (!listenerInput.value || listenerInput.value === "Listener")) {
+      listenerInput.value = name;
+    }
 
     // Moods subtitle
     const moodSub = document.getElementById("mood-hub-languages-desc");
@@ -771,40 +826,6 @@ class OxyzenApp {
       });
     }
 
-    // Top Artists from history
-    const artistCounts = {};
-    history.forEach(t => {
-      if (t.artist) {
-        const primary = t.artist.split(",")[0].trim();
-        artistCounts[primary] = (artistCounts[primary] || 0) + 1;
-      }
-    });
-
-    const topArtistsRow = document.getElementById("page-top-artists-row");
-    if (topArtistsRow) {
-      const sortedArtists = Object.keys(artistCounts).sort((a, b) => artistCounts[b] - artistCounts[a]);
-      if (sortedArtists.length > 0) {
-        topArtistsRow.innerHTML = sortedArtists.slice(0, 8).map(art => `
-          <div class="artist-pill" data-artist="${this.escapeHTML(art)}">
-            <span>🎧</span>
-            <span>${this.escapeHTML(art)}</span>
-            <span style="font-size: 10px; opacity: 0.6; margin-left: 4px;">(${artistCounts[art]})</span>
-          </div>
-        `).join("");
-
-        topArtistsRow.querySelectorAll(".artist-pill").forEach(pill => {
-          pill.addEventListener("click", () => {
-            const art = pill.dataset.artist;
-            if (art && this.searchInput) {
-              this.searchInput.value = art;
-              this.switchView("search");
-              this.performSearch(art);
-            }
-          });
-        });
-      }
-    }
-
     // Streaming Quality Selector
     const qualitySelector = document.getElementById("page-quality-selector");
     if (qualitySelector) {
@@ -847,8 +868,21 @@ class OxyzenApp {
       });
     }
 
-    // Languages Grid on Page
+    // Languages Grid on Page with Real-Time Search Filter
     const pageLangsGrid = document.getElementById("page-languages-grid");
+    const langSearchInput = document.getElementById("profile-lang-search-input");
+
+    if (langSearchInput && pageLangsGrid) {
+      langSearchInput.oninput = (e) => {
+        const term = e.target.value.toLowerCase().trim();
+        pageLangsGrid.querySelectorAll(".lang-chip").forEach(chip => {
+          const lText = (chip.dataset.lang || chip.innerText).toLowerCase();
+          const match = !term || lText.includes(term);
+          chip.style.display = match ? "inline-flex" : "none";
+        });
+      };
+    }
+
     if (pageLangsGrid) {
       pageLangsGrid.querySelectorAll(".lang-chip").forEach(chip => {
         chip.classList.toggle("active", langs.includes(chip.dataset.lang));
@@ -858,7 +892,8 @@ class OxyzenApp {
           pageLangsGrid.querySelectorAll(".lang-chip.active").forEach(c => {
             if (c.dataset.lang) selected.push(c.dataset.lang);
           });
-          this.userProfile.languages = selected.length > 0 ? selected : ["Telugu", "Hindi", "English"];
+          this.userProfile.languages = selected.length > 0 ? selected : ["Hindi", "English"];
+          this.activeMoodLanguage = this.userProfile.languages[0];
           localStorage.setItem("oxyzen_user_languages", JSON.stringify(this.userProfile.languages));
           this.updateProfileUI();
           this.showToast(`🌐 Preferred languages updated: ${this.userProfile.languages.join(", ")}`);
@@ -867,6 +902,7 @@ class OxyzenApp {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(this.userProfile)
           }).catch(() => {});
+          this.refreshPersonalizedSections();
         };
       });
     }
@@ -901,6 +937,166 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
+  // AUTOCOMPLETE SEARCH ENGINE & RESULTS RENDERER
+  // -------------------------------------------------------------
+  async fetchSuggestions(query) {
+    if (!this.searchSuggestionsDropdown || !query || query.trim().length < 2) {
+      this.hideSuggestions();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/suggestions?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      const suggestions = (data.suggestions || []).slice(0, 8);
+
+      if (suggestions.length === 0) {
+        this.hideSuggestions();
+        return;
+      }
+
+      this.searchSuggestionsDropdown.innerHTML = suggestions.map(s => `
+        <div class="search-suggestion-item" data-suggestion="${this.escapeHTML(s)}">
+          <span class="search-suggestion-icon">🔍</span>
+          <span class="search-suggestion-text">${this.escapeHTML(s)}</span>
+        </div>
+      `).join("");
+
+      this.searchSuggestionsDropdown.classList.add("visible");
+
+      this.searchSuggestionsDropdown.querySelectorAll(".search-suggestion-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const val = item.dataset.suggestion;
+          if (this.searchInput) this.searchInput.value = val;
+          this.hideSuggestions();
+          this.performSearch(val);
+        });
+      });
+    } catch (e) {
+      this.hideSuggestions();
+    }
+  }
+
+  hideSuggestions() {
+    if (this.searchSuggestionsDropdown) {
+      this.searchSuggestionsDropdown.classList.remove("visible");
+      this.searchSuggestionsDropdown.innerHTML = "";
+    }
+  }
+
+  async performSearch(query) {
+    if (!query || !query.trim()) return;
+    this.searchQuery = query.trim();
+    if (this.searchInput) this.searchInput.value = this.searchQuery;
+    if (this.searchClearBtn) this.searchClearBtn.classList.add("visible");
+    this.hideSuggestions();
+
+    if (this.activeView !== "search") {
+      this.switchView("search");
+    }
+
+    const container = document.getElementById("search-results-container");
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
+        <div class="sync-spinner" style="margin: 0 auto 16px;"></div>
+        <div>Searching high-fidelity catalog for "${this.escapeHTML(this.searchQuery)}"...</div>
+      </div>
+    `;
+
+    try {
+      const filterParam = this.searchFilter ? `&type=${encodeURIComponent(this.searchFilter)}` : '';
+      const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(this.searchQuery)}&limit=40${filterParam}`);
+      const data = await res.json();
+      const tracks = this.registerTracks(data.tracks || data.results || []);
+
+      if (tracks.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 80px 0; color: var(--silver-muted);">
+            <div style="font-size: 40px; margin-bottom: 12px;">🔎</div>
+            <div style="font-size: 18px; font-weight: 700; color: #FFFFFF; margin-bottom: 6px;">No Results Found for "${this.escapeHTML(this.searchQuery)}"</div>
+            <div>Try checking the spelling or searching for another song, artist, or album.</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="hero-banner" style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 24px;">
+          <div class="hero-content">
+            <span class="hero-badge" style="color: var(--accent-cyan); border-color: rgba(34, 211, 238, 0.4);">SEARCH RESULTS</span>
+            <h1 class="hero-title">"${this.escapeHTML(this.searchQuery)}"</h1>
+            <p class="hero-desc">${tracks.length} master-quality results found</p>
+            <div class="hero-actions" style="margin-top: 14px;">
+              <button class="btn-luxury btn-gold-action" id="search-play-all-btn">▶ Play Top Result</button>
+              <button class="btn-luxury" id="search-queue-all-btn">➕ Add All to Queue</button>
+            </div>
+          </div>
+        </div>
+
+        <table class="track-table">
+          <thead>
+            <tr>
+              <th class="row-index-col">#</th>
+              <th>Title</th>
+              <th>Album</th>
+              <th>Duration</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tracks.map((t, idx) => `
+              <tr class="track-row ${this.currentTrack && (this.currentTrack.id === t.id) ? 'active' : ''}" data-track-id="${t.id}">
+                <td class="row-index-col">${idx + 1}</td>
+                <td class="row-track-col">
+                  <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
+                  <div>
+                    <div class="row-title">${this.escapeHTML(t.title)}</div>
+                    <div class="row-artist">${this.escapeHTML(t.artist)}</div>
+                  </div>
+                </td>
+                <td>${this.escapeHTML(t.album || 'Oxyzen Audio')}</td>
+                <td>${t.duration_formatted || '3:30'}</td>
+                <td style="text-align: right;">
+                  <div class="row-actions">
+                    <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Like">
+                      ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
+                    </button>
+                    <button class="btn-row-action" data-action="add-playlist" title="Add to Playlist">📁</button>
+                    <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
+                    <button class="btn-row-action" data-action="download" title="Download">⬇️</button>
+                  </div>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+
+      this.attachTrackRowEventListeners(container, tracks);
+
+      const playAllBtn = document.getElementById("search-play-all-btn");
+      if (playAllBtn && tracks.length > 0) {
+        playAllBtn.addEventListener("click", () => {
+          this.setQueue(tracks, 0);
+          this.playTrack(tracks[0]);
+        });
+      }
+
+      const queueAllBtn = document.getElementById("search-queue-all-btn");
+      if (queueAllBtn && tracks.length > 0) {
+        queueAllBtn.addEventListener("click", () => {
+          tracks.forEach(t => this.addToQueue(t));
+          this.showToast(`➕ Added ${tracks.length} tracks to queue`);
+        });
+      }
+    } catch (e) {
+      container.innerHTML = `<div style="color: #EF4444; padding: 40px;">Search failed: ${e.message}</div>`;
+    }
+  }
+
+  // -------------------------------------------------------------
   // MULTILINGUAL MOOD STATIONS MATRIX
   // -------------------------------------------------------------
   async loadMoodCategories() {
@@ -927,6 +1123,13 @@ class OxyzenApp {
         });
       });
 
+      const userLangs = (this.userProfile && this.userProfile.languages && this.userProfile.languages.length > 0)
+        ? this.userProfile.languages
+        : ['Hindi', 'English'];
+      if (!this.activeMoodLanguage || !userLangs.includes(this.activeMoodLanguage)) {
+        this.activeMoodLanguage = userLangs[0] || 'Hindi';
+      }
+
       // Default load active mood station
       if (this.activeMoodKey) {
         this.loadMoodStation(this.activeMoodKey, this.activeMoodLanguage);
@@ -940,10 +1143,14 @@ class OxyzenApp {
 
   async loadMoodStation(moodKey, targetLang) {
     this.activeMoodKey = moodKey;
+    const userLangs = (this.userProfile && this.userProfile.languages && this.userProfile.languages.length > 0)
+      ? this.userProfile.languages
+      : ['Hindi', 'English'];
+
     if (targetLang) {
       this.activeMoodLanguage = targetLang;
-    } else if (!this.activeMoodLanguage) {
-      this.activeMoodLanguage = (this.userProfile && this.userProfile.languages && this.userProfile.languages[0]) || 'Telugu';
+    } else if (!this.activeMoodLanguage || !userLangs.includes(this.activeMoodLanguage)) {
+      this.activeMoodLanguage = userLangs[0] || 'Hindi';
     }
 
     if (this.activeView !== "moods") {
@@ -1858,6 +2065,143 @@ class OxyzenApp {
     if (badge) badge.innerText = count;
   }
 
+  loadCollectionView() {
+    const container = document.getElementById("collection-hub-container");
+    if (!container) return;
+
+    const liked = this.storage.getLikedTracks();
+    const playlists = this.storage.getPlaylists();
+    const history = this.storage.getHistory(30);
+
+    let html = `
+      <div class="collection-hub-wrapper">
+        <div class="collection-header">
+          <div class="hero-badge" style="color: var(--gold-accent); border-color: rgba(245, 197, 66, 0.35); margin-bottom: 8px;">✦ YOUR PERSONAL VAULT</div>
+          <h1 class="collection-title">Music Collection</h1>
+          <p class="collection-desc">${liked.length} Favorites • ${playlists.length} Playlists • ${history.length} Recently Played</p>
+        </div>
+
+        <div class="collection-cards-grid">
+          <!-- 1. Favorites / Liked Card -->
+          <div class="collection-hub-card card-favorites" id="col-card-liked">
+            <div class="col-card-icon-wrap" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">
+              ❤️
+            </div>
+            <div class="col-card-body">
+              <div class="col-card-badge" style="color: #EF4444;">${liked.length} TRACKS</div>
+              <h2 class="col-card-title">Liked Songs</h2>
+              <p class="col-card-sub">Your personal hall of fame. All tracks you have hearted across stations.</p>
+              <div class="col-card-actions">
+                <button class="btn-luxury btn-gold-action" id="col-open-liked-btn">Open Favorites →</button>
+                ${liked.length > 0 ? `<button class="btn-luxury" id="col-play-liked-btn" style="padding: 8px 12px;">▶ Play All</button>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Custom Playlists Card -->
+          <div class="collection-hub-card card-playlists" id="col-card-playlists">
+            <div class="col-card-icon-wrap" style="background: rgba(168, 85, 247, 0.15); color: #A855F7;">
+              📁
+            </div>
+            <div class="col-card-body">
+              <div class="col-card-badge" style="color: #A855F7;">${playlists.length} PLAYLISTS</div>
+              <h2 class="col-card-title">My Playlists</h2>
+              <p class="col-card-sub">Custom acoustic vibe curations, Spotify/JioSaavn imports, and JSON backups.</p>
+              <div class="col-card-actions">
+                <button class="btn-luxury" id="col-open-playlists-btn" style="border-color: rgba(168, 85, 247, 0.4); color: #A855F7;">Open Playlists →</button>
+                <button class="btn-luxury btn-gold-action" id="col-create-playlist-btn" style="padding: 8px 12px;">➕ New</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. History Card -->
+          <div class="collection-hub-card card-history" id="col-card-history">
+            <div class="col-card-icon-wrap" style="background: rgba(34, 211, 238, 0.15); color: #22D3EE;">
+              🕒
+            </div>
+            <div class="col-card-body">
+              <div class="col-card-badge" style="color: #22D3EE;">${history.length} PLAYED</div>
+              <h2 class="col-card-title">Listening History</h2>
+              <p class="col-card-sub">Trace your listening timeline and rediscover tracks played across sessions.</p>
+              <div class="col-card-actions">
+                <button class="btn-luxury" id="col-open-history-btn" style="border-color: rgba(34, 211, 238, 0.4); color: #22D3EE;">View History →</button>
+                ${history.length > 0 ? `<button class="btn-luxury" id="col-clear-history-btn" style="padding: 8px 12px; color: #EF4444;">Clear</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${playlists.length > 0 ? `
+          <div style="margin-top: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Your Playlists Quick Access</h3>
+              <button class="btn-luxury" id="col-see-all-playlists-btn" style="padding: 4px 10px; font-size: 11px;">See All</button>
+            </div>
+            <div class="playlists-grid">
+              ${playlists.slice(0, 4).map(pl => {
+                const first = pl.tracks && pl.tracks[0];
+                const cover = pl.cover_url || (first ? (first.image || first.thumbnail) : '/static/assets/logo.png');
+                return `
+                  <div class="playlist-card" data-col-pl-id="${pl.id}" style="cursor: pointer;">
+                    <div class="card-img-wrapper" style="position: relative; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 10px;">
+                      <img src="${cover}" onerror="this.src='/static/assets/logo.png'" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <div style="font-weight: 700; font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHTML(pl.name)}</div>
+                    <div style="font-size: 11px; color: var(--silver-muted); margin-top: 4px;">${(pl.tracks || []).length} tracks</div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    // Attach Action Listeners
+    const openLikedBtn = document.getElementById("col-open-liked-btn");
+    if (openLikedBtn) openLikedBtn.onclick = () => this.switchView("liked");
+
+    const playLikedBtn = document.getElementById("col-play-liked-btn");
+    if (playLikedBtn && liked.length > 0) {
+      playLikedBtn.onclick = () => {
+        this.setQueue(liked, 0);
+        this.playTrack(liked[0]);
+      };
+    }
+
+    const openPlBtn = document.getElementById("col-open-playlists-btn");
+    if (openPlBtn) openPlBtn.onclick = () => this.switchView("playlists");
+
+    const seeAllPlBtn = document.getElementById("col-see-all-playlists-btn");
+    if (seeAllPlBtn) seeAllPlBtn.onclick = () => this.switchView("playlists");
+
+    const createPlBtn = document.getElementById("col-create-playlist-btn");
+    if (createPlBtn) createPlBtn.onclick = () => this.openCreatePlaylistModal();
+
+    const openHistBtn = document.getElementById("col-open-history-btn");
+    if (openHistBtn) openHistBtn.onclick = () => this.switchView("history");
+
+    const clearHistBtn = document.getElementById("col-clear-history-btn");
+    if (clearHistBtn) {
+      clearHistBtn.onclick = () => {
+        if (confirm("Clear your listening history?")) {
+          this.storage.clearHistory();
+          this.loadCollectionView();
+          this.showToast("History cleared");
+        }
+      };
+    }
+
+    container.querySelectorAll('[data-col-pl-id]').forEach(card => {
+      card.onclick = () => {
+        const plId = card.getAttribute('data-col-pl-id');
+        if (plId) this.loadPlaylistDetailView(plId);
+      };
+    });
+  }
+
   loadLikedView() {
     const container = document.getElementById("liked-songs-container");
     if (!container) return;
@@ -2033,7 +2377,7 @@ class OxyzenApp {
   }
 
   // -------------------------------------------------------------
-  // CUSTOM PLAYLISTS
+  // CUSTOM PLAYLISTS (MANUAL, LINK IMPORT, & JSON EXPORT/IMPORT)
   // -------------------------------------------------------------
   loadPlaylistsView() {
     const container = document.getElementById("playlists-container");
@@ -2042,40 +2386,59 @@ class OxyzenApp {
     this.playlists = this.storage.getPlaylists();
 
     let html = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <div class="playlists-header">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">My Playlists</h2>
-          <p style="font-size: 13px; color: var(--silver-muted);">${this.playlists.length} custom playlists stored on this device</p>
+          <p style="font-size: 13px; color: var(--silver-muted);">${this.playlists.length} playlists stored on this device</p>
         </div>
-        <button class="btn-luxury btn-gold-action" id="create-new-playlist-btn">
-          <span>➕</span>
-          <span>Create Playlist</span>
-        </button>
+        <div class="playlists-action-buttons">
+          <button class="btn-luxury btn-gold-action" id="create-new-playlist-btn">
+            <span>➕</span>
+            <span>Create Playlist</span>
+          </button>
+          <button class="btn-luxury" id="import-playlist-link-btn" style="border-color: rgba(34, 211, 238, 0.4); color: var(--accent-cyan);">
+            <span>🔗</span>
+            <span>Import via Link (Spotify / JioSaavn)</span>
+          </button>
+          <button class="btn-luxury" id="import-playlist-json-btn">
+            <span>📤</span>
+            <span>Import JSON</span>
+          </button>
+        </div>
       </div>
     `;
 
     if (this.playlists.length === 0) {
       html += `
-        <div style="text-align: center; padding: 60px 0; color: var(--silver-muted);">
-          <div style="font-size: 36px; margin-bottom: 14px;">📁</div>
+        <div style="text-align: center; padding: 60px 0; color: var(--silver-muted); background: rgba(18, 18, 26, 0.5); border-radius: var(--radius-lg); border: 1px dashed rgba(255,255,255,0.1);">
+          <div style="font-size: 40px; margin-bottom: 14px;">📁</div>
           <div style="font-size: 20px; font-weight: 700; color: var(--silver-light); margin-bottom: 6px;">No Playlists Created Yet</div>
-          <div>Create your first playlist and start building your personal sanctuary.</div>
+          <p style="font-size: 13.5px; max-width: 480px; margin: 0 auto 20px; color: var(--silver-muted);">
+            Create a custom playlist manually, import any public playlist from Spotify or JioSaavn, or restore an Oxyzen JSON playlist!
+          </p>
+          <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+            <button class="btn-luxury btn-gold-action" onclick="window.oxyzenApp.openCreatePlaylistModal()">➕ Create Manually</button>
+            <button class="btn-luxury" onclick="window.oxyzenApp.openImportPlaylistModal()">🔗 Import from Spotify / JioSaavn</button>
+          </div>
         </div>
       `;
     } else {
       html += `
-        <div class="cards-grid">
+        <div class="playlists-grid">
           ${this.playlists.map(pl => {
             const firstTrack = pl.tracks && pl.tracks[0];
             const cover = pl.cover_url || (firstTrack ? (firstTrack.image || firstTrack.thumbnail) : '/static/assets/logo.png');
             return `
-              <div class="playlist-card" data-pl-id="${pl.id}" style="background: rgba(18, 18, 26, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;">
+              <div class="playlist-card" data-pl-id="${pl.id}">
                 <div class="card-img-wrapper" style="position: relative; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 12px;">
                   <img src="${cover}" onerror="this.src='/static/assets/logo.png'" style="width: 100%; height: 100%; object-fit: cover;">
-                  <button class="card-play-btn">▶</button>
+                  <button class="card-play-btn" data-action="play-pl" data-pl-id="${pl.id}">▶</button>
                 </div>
                 <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHTML(pl.name)}</div>
-                <div style="font-size: 12px; color: var(--silver-muted);">${(pl.tracks || []).length} tracks</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--silver-muted); margin-top: 6px;">
+                  <span>${(pl.tracks || []).length} tracks</span>
+                  <button class="btn-row-action" data-action="export-pl" data-pl-id="${pl.id}" title="Export Playlist (.json)" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.06);">📥 Export</button>
+                </div>
               </div>
             `;
           }).join("")}
@@ -2090,8 +2453,39 @@ class OxyzenApp {
       createBtn.addEventListener("click", () => this.openCreatePlaylistModal());
     }
 
+    const importLinkBtn = document.getElementById("import-playlist-link-btn");
+    if (importLinkBtn) {
+      importLinkBtn.addEventListener("click", () => this.openImportPlaylistModal());
+    }
+
+    const importJsonBtn = document.getElementById("import-playlist-json-btn");
+    if (importJsonBtn) {
+      importJsonBtn.addEventListener("click", () => {
+        const fileInput = document.getElementById("playlist-import-json-input");
+        if (fileInput) fileInput.click();
+      });
+    }
+
     container.querySelectorAll(".playlist-card").forEach(card => {
-      card.addEventListener("click", () => {
+      card.addEventListener("click", (e) => {
+        if (e.target.closest('[data-action="export-pl"]')) {
+          e.stopPropagation();
+          const plId = e.target.closest('[data-action="export-pl"]').dataset.plId;
+          if (this.storage.exportPlaylistToFile(plId)) {
+            this.showToast("📥 Exported playlist as .json");
+          }
+          return;
+        }
+        if (e.target.closest('[data-action="play-pl"]')) {
+          e.stopPropagation();
+          const plId = card.dataset.plId;
+          const pl = this.storage.getPlaylist(plId);
+          if (pl && pl.tracks && pl.tracks.length > 0) {
+            this.setQueue(pl.tracks, 0);
+            this.playTrack(pl.tracks[0]);
+          }
+          return;
+        }
         const plId = card.dataset.plId;
         this.loadPlaylistDetailView(plId);
       });
@@ -2106,6 +2500,12 @@ class OxyzenApp {
     const container = document.getElementById("playlist-detail-container");
     if (!container) return;
 
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    const mainContent = document.getElementById("main-content");
+    if (mainContent) mainContent.scrollTop = 0;
+    const targetView = document.getElementById("view-playlist-detail");
+    if (targetView) targetView.scrollTop = 0;
+
     const tracks = this.registerTracks(pl.tracks || []);
     const firstTrack = tracks[0];
     const cover = pl.cover_url || (firstTrack ? (firstTrack.image || firstTrack.thumbnail) : '/static/assets/logo.png');
@@ -2114,16 +2514,17 @@ class OxyzenApp {
       <div style="margin-bottom: 20px;">
         <button class="btn-luxury" id="playlist-back-btn" style="padding: 6px 12px; font-size: 12px;">← Back to Playlists</button>
       </div>
-      <div class="hero-banner" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
-        <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
-          <img src="${cover}" onerror="this.src='/static/assets/logo.png'" style="width: 120px; height: 120px; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.3);">
-          <div class="hero-content">
+      <div class="hero-banner playlist-detail-hero" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 24, 0.95)); margin-bottom: 28px;">
+        <div class="playlist-hero-inner">
+          <img class="playlist-detail-cover" src="${cover}" onerror="this.src='/static/assets/logo.png'">
+          <div class="hero-content playlist-hero-content">
             <span class="hero-badge" style="color: #A855F7; border-color: rgba(168, 85, 247, 0.3);">PLAYLIST</span>
-            <h1 class="hero-title" style="font-size: 28px;">${this.escapeHTML(pl.name)}</h1>
-            <p class="hero-desc">${this.escapeHTML(pl.description || '')} • ${tracks.length} tracks</p>
-            <div class="hero-actions" style="margin-top: 12px;">
+            <h1 class="hero-title playlist-title-text" style="font-size: 28px;">${this.escapeHTML(pl.name)}</h1>
+            <p class="hero-desc">${this.escapeHTML(pl.description || '')} • ${tracks.length} lossless tracks</p>
+            <div class="hero-actions playlist-hero-actions">
               <button class="btn-luxury btn-gold-action" id="pl-detail-play-btn">▶ Play All</button>
               <button class="btn-luxury" id="pl-detail-shuffle-btn">🔀 Shuffle</button>
+              <button class="btn-luxury" id="pl-detail-export-btn">📥 Export JSON</button>
               <button class="btn-luxury" id="pl-detail-rename-btn">✏️ Rename</button>
               <button class="btn-luxury btn-danger-action" id="pl-detail-delete-btn">🗑️ Delete</button>
             </div>
@@ -2205,6 +2606,15 @@ class OxyzenApp {
       });
     }
 
+    const exportBtn = document.getElementById("pl-detail-export-btn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        if (this.storage.exportPlaylistToFile(playlistId)) {
+          this.showToast(`📥 Exported "${pl.name}" as JSON`);
+        }
+      });
+    }
+
     const renameBtn = document.getElementById("pl-detail-rename-btn");
     if (renameBtn) {
       renameBtn.addEventListener("click", () => {
@@ -2236,6 +2646,119 @@ class OxyzenApp {
         this.loadPlaylistDetailView(playlistId);
         this.showToast("Removed track from playlist");
       });
+    });
+  }
+
+  openImportPlaylistModal() {
+    const modal = document.getElementById("import-playlist-modal");
+    const urlInput = document.getElementById("import-playlist-url-input");
+    const statusDiv = document.getElementById("import-playlist-status");
+    const submitBtn = document.getElementById("import-playlist-submit-btn");
+    const cancelBtn = document.getElementById("import-playlist-cancel-btn");
+    const closeBtn = document.getElementById("import-playlist-close-btn");
+
+    if (!modal) return;
+    if (urlInput) urlInput.value = "";
+    if (statusDiv) {
+      statusDiv.style.display = "none";
+      statusDiv.innerHTML = "";
+    }
+
+    modal.classList.add("active");
+    if (urlInput) urlInput.focus();
+
+    const closeModal = () => modal.classList.remove("active");
+    if (closeBtn) closeBtn.onclick = closeModal;
+    if (cancelBtn) cancelBtn.onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+    if (submitBtn) {
+      submitBtn.onclick = async () => {
+        const url = urlInput ? urlInput.value.trim() : "";
+        if (!url) {
+          if (statusDiv) {
+            statusDiv.style.display = "block";
+            statusDiv.style.color = "#EF4444";
+            statusDiv.innerText = "Please paste a valid Spotify or JioSaavn playlist/album URL.";
+          }
+          return;
+        }
+
+        submitBtn.disabled = true;
+        if (statusDiv) {
+          statusDiv.style.display = "block";
+          statusDiv.style.color = "var(--gold-accent)";
+          statusDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="sync-spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>
+              <span>Resolving tracks and converting audio streams...</span>
+            </div>
+          `;
+        }
+
+        try {
+          const res = await fetch(`${API_BASE}/api/playlist/import`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url })
+          });
+          const data = await res.json();
+
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || "Failed to import playlist");
+          }
+
+          // Register tracks and save playlist
+          const importedTracks = this.registerTracks(data.tracks || []);
+          const newPl = this.storage.createPlaylist(data.name, data.description, data.cover_url);
+          for (const t of importedTracks) {
+            this.storage.addTrackToPlaylist(newPl.id, t);
+          }
+
+          closeModal();
+          this.showToast(`🎉 Imported "${data.name}" with ${importedTracks.length} tracks!`);
+          this.loadPlaylistDetailView(newPl.id);
+        } catch (err) {
+          if (statusDiv) {
+            statusDiv.style.display = "block";
+            statusDiv.style.color = "#EF4444";
+            statusDiv.innerText = `Import failed: ${err.message}`;
+          }
+        } finally {
+          submitBtn.disabled = false;
+        }
+      };
+    }
+  }
+
+  setupPlaylistImportListeners() {
+    const fileInput = document.getElementById("playlist-import-json-input");
+    if (!fileInput) return;
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const result = this.storage.importBackupData(event.target.result);
+          if (result.success) {
+            this.showToast(`📥 ${result.message}`);
+            if (result.playlist) {
+              this.loadPlaylistDetailView(result.playlist.id);
+            } else if (this.activeView === "playlists") {
+              this.loadPlaylistsView();
+            }
+          } else {
+            this.showToast(`⚠️ ${result.message}`);
+          }
+        } catch (err) {
+          this.showToast(`⚠️ Import error: ${err.message}`);
+        }
+        fileInput.value = "";
+      };
+      reader.readAsText(file);
     });
   }
 

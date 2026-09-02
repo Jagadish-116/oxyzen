@@ -10,7 +10,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { createNodeWebSocket } from '@hono/node-ws';
 import fs from 'fs';
 import path from 'path';
-import { searchSongs, getSongDetails, getSearchSuggestions, getTrending, getCharts, getExploreFeed, getMoodCategories, getMoodFeed, getVibeRecommendations } from './services/jiosaavn.js';
+import { searchSongs, getSongDetails, getSearchSuggestions, getTrending, getCharts, getExploreFeed, getMoodCategories, getMoodFeed, getVibeRecommendations, importPlaylistFromUrl } from './services/jiosaavn.js';
 import { getLyrics } from './services/lyrics.js';
 import { getDb, getLikes, getLikedIds, toggleLike, getPlaylists, createPlaylist, getPlaylistDetails, addTrackToPlaylist, removeTrackFromPlaylist, deletePlaylist, getHistory, addToHistory, clearHistory, getUserProfile, saveUserProfile, getUserListeningProfile } from './services/db.js';
 import { syncManager } from './services/sync.js';
@@ -439,7 +439,7 @@ app.get('/api/moods/:mood_key', async (c) => {
     const moodKey = c.req.param('mood_key');
     const langsParam = c.req.query('languages');
     const targetLang = c.req.query('language') || c.req.query('lang');
-    const langs = langsParam ? langsParam.split(',').map(l => l.trim()).filter(Boolean) : ['Telugu', 'Hindi', 'English'];
+    const langs = langsParam ? langsParam.split(',').map(l => l.trim()).filter(Boolean) : ['Hindi', 'English'];
     const feed = await getMoodFeed(moodKey, langs, targetLang);
     return c.json(feed);
 });
@@ -495,6 +495,20 @@ app.post('/api/library/playlists/create', async (c) => {
     const cover = data.cover_url || '';
     const pl = createPlaylist(name, desc, cover);
     return c.json(pl);
+});
+app.post('/api/playlist/import', async (c) => {
+    try {
+        const payload = await c.req.json().catch(() => ({}));
+        const url = payload.url;
+        if (!url || typeof url !== 'string') {
+            return c.json({ success: false, error: 'Please provide a valid JioSaavn or Spotify playlist URL' }, 400);
+        }
+        const imported = await importPlaylistFromUrl(url);
+        return c.json(imported);
+    }
+    catch (err) {
+        return c.json({ success: false, error: err.message || 'Failed to import playlist' }, 400);
+    }
 });
 app.get('/api/library/playlists/:id', (c) => {
     const id = c.req.param('id');

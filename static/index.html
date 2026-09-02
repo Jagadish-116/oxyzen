@@ -197,6 +197,11 @@
         <div id="vibe-station-container"></div>
       </section>
 
+      <!-- 4.5 COLLECTION HUB (MOBILE & UNIFIED LIBRARY) -->
+      <section id="view-collection" class="page-view">
+        <div id="collection-hub-container"></div>
+      </section>
+
       <!-- 5. LIKED SONGS -->
       <section id="view-liked" class="page-view">
         <div id="liked-songs-container"></div>
@@ -618,32 +623,40 @@
                 <p class="profile-section-sub">Select your preferred languages for Explore Feed & Mood Stations</p>
               </div>
             </div>
+            
+            <!-- Language Search Bar -->
+            <div style="position: relative; margin-bottom: 14px;">
+              <input type="text" id="profile-lang-search-input" class="search-input-box" placeholder="🔍 Search language (e.g. Hindi, Punjabi, Tamil, Spanish, Korean)..." style="font-size: 13px; padding: 10px 14px; width: 100%; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);">
+            </div>
+
             <div class="language-chips-grid" id="page-languages-grid">
-              <div class="lang-chip active" data-lang="Telugu">🇮🇳 Telugu</div>
-              <div class="lang-chip active" data-lang="Hindi">🇮🇳 Hindi</div>
-              <div class="lang-chip active" data-lang="English">🇬🇧 English</div>
+              <div class="lang-chip" data-lang="Hindi">🇮🇳 Hindi</div>
+              <div class="lang-chip" data-lang="English">🇬🇧 English</div>
+              <div class="lang-chip" data-lang="Telugu">🇮🇳 Telugu</div>
               <div class="lang-chip" data-lang="Tamil">🇮🇳 Tamil</div>
               <div class="lang-chip" data-lang="Punjabi">🇮🇳 Punjabi</div>
-              <div class="lang-chip" data-lang="Kannada">🇮🇳 Kannada</div>
               <div class="lang-chip" data-lang="Malayalam">🇮🇳 Malayalam</div>
+              <div class="lang-chip" data-lang="Kannada">🇮🇳 Kannada</div>
+              <div class="lang-chip" data-lang="Bengali">🇮🇳 Bengali</div>
+              <div class="lang-chip" data-lang="Marathi">🇮🇳 Marathi</div>
+              <div class="lang-chip" data-lang="Gujarati">🇮🇳 Gujarati</div>
+              <div class="lang-chip" data-lang="Bhojpuri">🇮🇳 Bhojpuri</div>
+              <div class="lang-chip" data-lang="Haryanvi">🇮🇳 Haryanvi</div>
+              <div class="lang-chip" data-lang="Rajasthani">🇮🇳 Rajasthani</div>
+              <div class="lang-chip" data-lang="Urdu">🇵🇰 Urdu</div>
+              <div class="lang-chip" data-lang="Assamese">🇮🇳 Assamese</div>
+              <div class="lang-chip" data-lang="Odia">🇮🇳 Odia</div>
               <div class="lang-chip" data-lang="Spanish">🇪🇸 Spanish</div>
               <div class="lang-chip" data-lang="Korean">🇰🇷 Korean</div>
               <div class="lang-chip" data-lang="Japanese">🇯🇵 Japanese</div>
               <div class="lang-chip" data-lang="French">🇫🇷 French</div>
-            </div>
-          </div>
-
-          <!-- Top Artists Grid -->
-          <div class="profile-card-section">
-            <div class="profile-section-title-wrap">
-              <span class="profile-section-icon">🎤</span>
-              <div>
-                <h3 class="profile-section-heading">Top Artists in Your Rotation</h3>
-                <p class="profile-section-sub">Computed from your recent listening history</p>
-              </div>
-            </div>
-            <div class="profile-top-artists-row" id="page-top-artists-row">
-              <div style="color: var(--silver-muted); font-size: 13px;">Stream some tracks to reveal your top artists!</div>
+              <div class="lang-chip" data-lang="German">🇩🇪 German</div>
+              <div class="lang-chip" data-lang="Arabic">🇦🇪 Arabic</div>
+              <div class="lang-chip" data-lang="Italian">🇮🇹 Italian</div>
+              <div class="lang-chip" data-lang="Russian">🇷🇺 Russian</div>
+              <div class="lang-chip" data-lang="Turkish">🇹🇷 Turkish</div>
+              <div class="lang-chip" data-lang="Portuguese">🇧🇷 Portuguese</div>
+              <div class="lang-chip" data-lang="Chinese">🇨🇳 Chinese</div>
             </div>
           </div>
 
@@ -733,9 +746,9 @@
         <span class="mobile-nav-icon">🎧</span>
         <span class="mobile-nav-label">SoundSync</span>
       </div>
-      <div class="mobile-nav-tab" data-view="liked">
-        <span class="mobile-nav-icon">❤️</span>
-        <span class="mobile-nav-label">Library</span>
+      <div class="mobile-nav-tab" data-view="collection">
+        <span class="mobile-nav-icon">📚</span>
+        <span class="mobile-nav-label">Collection</span>
       </div>
       <div class="mobile-nav-tab" data-view="profile">
         <span class="mobile-nav-icon">👑</span>
@@ -967,25 +980,42 @@
     </div>
   </div>
 
-  <!-- ==================== ADD TO PLAYLIST MODAL ==================== -->
-  <div class="modal-overlay" id="add-to-playlist-modal">
-    <div class="modal-dialog" style="max-width: 440px;">
+  <!-- ==================== IMPORT PLAYLIST LINK MODAL ==================== -->
+  <div class="modal-overlay" id="import-playlist-modal">
+    <div class="modal-dialog" style="max-width: 480px;">
       <div class="modal-header">
         <div class="modal-title">
-          <span>📁</span>
-          <span>Add Track to Playlist</span>
+          <span>🔗</span>
+          <span>Import Spotify or JioSaavn Playlist</span>
         </div>
-        <button class="modal-close-btn" id="add-to-playlist-close-btn">✕</button>
+        <button class="modal-close-btn" id="import-playlist-close-btn">✕</button>
       </div>
       <div class="modal-body">
-        <div id="add-to-playlist-list" style="max-height: 280px; overflow-y: auto; margin-bottom: 16px;"></div>
-        <button class="btn-luxury btn-gold-action" id="modal-quick-create-playlist-btn" style="width: 100%; justify-content: center;">
-          <span>➕</span>
-          <span>Create New Playlist</span>
-        </button>
+        <div class="sync-field-group">
+          <label class="sync-field-label">Paste Playlist or Album Link</label>
+          <input type="url" id="import-playlist-url-input" class="sync-field-input" placeholder="https://open.spotify.com/playlist/... or https://www.jiosaavn.com/featured/..." autocomplete="off">
+        </div>
+        <div style="font-size: 11.5px; color: var(--silver-muted); margin-top: 8px; line-height: 1.4;">
+          Supported: Spotify Public Playlists & Albums, JioSaavn Featured Playlists & Albums.
+        </div>
+        
+        <div id="import-playlist-status" style="margin-top: 14px; font-size: 13px; display: none;"></div>
+
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button class="btn-luxury btn-gold-action" id="import-playlist-submit-btn" style="flex: 1; justify-content: center; padding: 12px;">
+            <span>⚡</span>
+            <span>Import Tracks</span>
+          </button>
+          <button class="btn-luxury" id="import-playlist-cancel-btn" style="padding: 12px 18px;">
+            <span>Cancel</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Hidden File Input for Playlist JSON Import -->
+  <input type="file" id="playlist-import-json-input" style="display: none;" accept=".json">
 
   <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
   <div id="toast-container"></div>

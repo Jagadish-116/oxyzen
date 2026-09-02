@@ -6,15 +6,31 @@
 import fs from 'fs';
 import path from 'path';
 const DB_FILE = path.resolve(process.cwd(), 'oxyzen_store.json');
+export function generateRandomUsername() {
+    const adjectives = [
+        'Acoustic', 'Sonic', 'Harmonic', 'Astral', 'Velvet', 'Neon', 'Cosmic', 'Golden',
+        'Midnight', 'Crystal', 'Ethereal', 'Vibrant', 'Quantum', 'Melodic', 'Celestial',
+        'Echo', 'Silken', 'Radiant', 'Zenith', 'Prism', 'Electric', 'Serene', 'Luminous'
+    ];
+    const nouns = [
+        'Voyager', 'Nomad', 'Maestro', 'Pulse', 'Rhythm', 'Cadence', 'Groove', 'Wave',
+        'Aura', 'Harmonics', 'Virtuoso', 'Soundscape', 'Chime', 'Drifter', 'Nexus', 'Symphony',
+        'Beats', 'Acoustics', 'Cipher', 'Melody', 'Resonance', 'Phantom', 'Orbit'
+    ];
+    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const num = Math.floor(100 + Math.random() * 900);
+    return `${adj}${noun}_${num}`;
+}
 const defaultStore = {
     likes: [],
     playlists: [],
     history: [],
     profile: {
-        username: 'Oxyzen Listener',
+        username: generateRandomUsername(),
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         audio_quality: 'Extreme (320kbps Lossless CDN)',
-        languages: ['Hindi', 'English', 'Telugu'],
+        languages: ['Hindi', 'English'],
         spatial_8d: false,
         eq_preset: 'flat'
     }

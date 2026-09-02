@@ -37,7 +37,13 @@
 - **📡 Vibe Radar 2.0 (Acoustic Kindred Matching)**:
   Detects active song language, artist repertoire, and musical style to suggest 50+ kindred tracks from that exact genre and language.
 - **🎭 12 Multilingual Mood Stations Matrix**:
-  Authentic genre-mapped mood stations (*Love & Romance*, *Midnight Lofi*, *Heartbreak Ballads*, *Feel Good Sunshine*, *Gym Pump*, *Party Club*, *Soulful Sufi*, *Rock & Riffs*, *Heroic Cinema*, *Devotional*, *Deep Focus*, *Retro Gold*) tailored across Telugu, Hindi, Tamil, English, Punjabi, Kannada, and Malayalam.
+  Curated from official editorial genre playlists (*Love & Romance*, *Midnight Lofi*, *Heartbreak Ballads*, *Feel Good Sunshine*, *Gym Pump*, *Party Club*, *Soulful Sufi*, *Rock & Riffs*, *Heroic Cinema*, *Devotional*, *Deep Focus*, *Retro Gold*) with acoustic mood verification (`verifyTrackMoodGenre`) across Telugu, Hindi, Tamil, English, Punjabi, Kannada, and Malayalam.
+- **📚 Mobile Collection Hub & Unified Library**:
+  Consolidates Favorites, Custom Playlists, and Listening History into a unified mobile vault with dedicated responsive cards and 1-tap playback.
+- **📥 Universal Playlist Import & Device JSON Sync**:
+  Import public playlists directly from Spotify and JioSaavn share URLs with automatic metadata and stream resolution, plus portable JSON export and backup restoration.
+- **👑 Device-Unique Audiophile Personas**:
+  Generates aesthetic, randomized musical personas for every device on first launch with local and server-side profile persistence.
 - **📱 Touch-First Responsive Mobile Web App**:
   Smooth horizontal touch-swipe carousels (`scroll-snap-type: x mandatory`), fixed frosted glass bottom navigation bar, floating mini-player capsule, and comfortable one-handed usability.
 
@@ -140,8 +146,21 @@ SoundSync operates over WebSockets (`ws://localhost:8000/ws/room/:roomCode`):
 - `GET /api/moods` — All 12 multilingual mood categories
 - `GET /api/moods/{mood}?languages={langs}` — Mood station tracklist
 - `GET /api/charts` — Popular charts (Trending India, Global 50, Regional Hits)
+- `POST /api/playlist/import` — Universal playlist import (Spotify & JioSaavn public URLs)
 - `GET /api/user/profile` / `POST /api/user/profile` — User preferences and language matrix
 - `GET /ws/room/:roomCode` — WebSocket SoundSync connection endpoint
+
+---
+
+## ⚠️ Disclaimer & Legal Notice
+
+> **IMPORTANT NOTICE REGARDING COPYRIGHT AND LICENSING**:
+>
+> 1. **Educational & Portfolio Purpose**: Oxyzen is a non-commercial, open-source educational side project created solely for software architecture demonstration, UI/UX design exploration, and Web Audio API experimentation.
+> 2. **No Licensed API / No Commercial Affiliation**: Oxyzen does **NOT** own, operate, or claim to provide a licensed commercial music streaming API. The service makes non-commercial use of public endpoints to fetch stream metadata for educational demonstration.
+> 3. **No Audio Hosting**: Oxyzen does not host, store, cache, or distribute any copyright-protected audio files, media assets, or recordings on its servers. Audio streams and album art are streamed directly to the client's browser from publicly accessible content delivery network (CDN) endpoints.
+> 4. **Intellectual Property Attribution**: All musical works, audio tracks, artist likenesses, trademarks, album covers, and associated metadata remain the exclusive intellectual property of their respective copyright holders, artists, record labels, and publishers (including but not limited to JioSaavn, Spotify, Saregama, T-Series, Sony Music, Universal Music Group, and Warner Music Group).
+> 5. **Takedown & Removal**: If you are a copyright owner or licensing representative and have inquiries or requests regarding content accessibility, please submit an issue on the repository, and the relevant links will be promptly addressed.
 
 ---
 

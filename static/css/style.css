@@ -3869,3 +3869,42 @@ input:checked + .switch-slider:before {
     justify-content: center !important;
   }
 }
+
+/* Mood Station Language Filters */
+.mood-lang-filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.mood-lang-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-full);
+  color: var(--silver-muted);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mood-lang-pill:hover {
+  background: rgba(245, 197, 66, 0.15);
+  border-color: rgba(245, 197, 66, 0.4);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.mood-lang-pill.active {
+  background: linear-gradient(135deg, rgba(245, 197, 66, 0.25), rgba(245, 197, 66, 0.1));
+  border-color: var(--gold-accent);
+  color: var(--gold-accent);
+  box-shadow: 0 0 16px rgba(245, 197, 66, 0.3);
+  font-weight: 700;
+}

@@ -47,6 +47,89 @@
   "playlists": [],
   "history": [
     {
+      "id": "g3bY-sbr",
+      "videoId": "g3bY-sbr",
+      "title": "Kung Fu Kumaari",
+      "artist": "Deepak, Ramya Behara",
+      "album": "Trending Telugu Vibes",
+      "image": "https://c.saavncdn.com/420/Trending-Telugu-Vibes-Telugu-2026-20260901053710-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/420/Trending-Telugu-Vibes-Telugu-2026-20260901053710-500x500.jpg",
+      "duration": "4:26",
+      "duration_sec": 266,
+      "duration_formatted": "4:26",
+      "downloadUrl": [],
+      "stream_url": "/api/stream/g3bY-sbr",
+      "direct_url": "/api/stream/g3bY-sbr",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788361344.358
+    },
+    {
+      "id": "UF8oDcLa",
+      "videoId": "UF8oDcLa",
+      "title": "Yendhukae Nannodhilaavu",
+      "artist": "Deepak Blue",
+      "album": "Return of The Dragon (Original Motion Picture Soundtrack)",
+      "image": "https://c.saavncdn.com/699/Return-of-The-Dragon-Original-Motion-Picture-Soundtrack-Telugu-2025-20250905081520-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/699/Return-of-The-Dragon-Original-Motion-Picture-Soundtrack-Telugu-2025-20250905081520-500x500.jpg",
+      "duration": "4:18",
+      "duration_sec": 258,
+      "duration_formatted": "4:18",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/699/a66b5618b62b8662bed8f1ddddd4c928_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/699/a66b5618b62b8662bed8f1ddddd4c928_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/699/a66b5618b62b8662bed8f1ddddd4c928_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/699/a66b5618b62b8662bed8f1ddddd4c928_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/699/a66b5618b62b8662bed8f1ddddd4c928_320.mp4",
+      "language": "telugu",
+      "year": "2025",
+      "has_lyrics": true,
+      "played_at": 1788360885.982
+    },
+    {
+      "id": "g3bY-sbr",
+      "videoId": "g3bY-sbr",
+      "title": "Kung Fu Kumaari",
+      "artist": "Deepak, Ramya Behara",
+      "album": "Trending Telugu Vibes",
+      "image": "https://c.saavncdn.com/420/Trending-Telugu-Vibes-Telugu-2026-20260901053710-500x500.jpg",
+      "thumbnail": "https://c.saavncdn.com/420/Trending-Telugu-Vibes-Telugu-2026-20260901053710-500x500.jpg",
+      "duration": "4:26",
+      "duration_sec": 266,
+      "duration_formatted": "4:26",
+      "downloadUrl": [
+        {
+          "bitrate": "96kbps",
+          "url": "https://aac.saavncdn.com/420/203f9c8fe5f01b88d5620ec978766752_96.mp4"
+        },
+        {
+          "bitrate": "160kbps",
+          "url": "https://aac.saavncdn.com/420/203f9c8fe5f01b88d5620ec978766752_160.mp4"
+        },
+        {
+          "bitrate": "320kbps",
+          "url": "https://aac.saavncdn.com/420/203f9c8fe5f01b88d5620ec978766752_320.mp4"
+        }
+      ],
+      "stream_url": "https://aac.saavncdn.com/420/203f9c8fe5f01b88d5620ec978766752_320.mp4",
+      "direct_url": "https://aac.saavncdn.com/420/203f9c8fe5f01b88d5620ec978766752_320.mp4",
+      "language": "telugu",
+      "year": "2026",
+      "has_lyrics": true,
+      "played_at": 1788360870.566
+    },
+    {
       "id": "A7AAUlh8",
       "videoId": "A7AAUlh8",
       "title": "Nijame Ne Chebutunna",
@@ -906,7 +989,6 @@
     "avatar": "🎧",
     "audio_quality": "320k",
     "languages": [
-      "Telugu",
       "English"
     ],
     "spatial_8d": false,

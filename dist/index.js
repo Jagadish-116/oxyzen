@@ -438,8 +438,9 @@ app.get('/api/moods', (c) => {
 app.get('/api/moods/:mood_key', async (c) => {
     const moodKey = c.req.param('mood_key');
     const langsParam = c.req.query('languages');
-    const langs = langsParam ? langsParam.split(',').map(l => l.trim()).filter(Boolean) : ['Hindi', 'English', 'Telugu'];
-    const feed = await getMoodFeed(moodKey, langs);
+    const targetLang = c.req.query('language') || c.req.query('lang');
+    const langs = langsParam ? langsParam.split(',').map(l => l.trim()).filter(Boolean) : ['Telugu', 'Hindi', 'English'];
+    const feed = await getMoodFeed(moodKey, langs, targetLang);
     return c.json(feed);
 });
 app.get('/api/recommendations', async (c) => {

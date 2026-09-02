@@ -51,28 +51,46 @@ class OxyzenAudioEngine {
     if (this.isInitialized) return;
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioContext();
+      this.audioCtx = new AudioContext({ latencyHint: 'playback' });
       
       // Source node from HTML5 audio
       this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
-      
-      // Analyser for Visualizer
-      this.analyserNode = this.audioCtx.createAnalyser();
-      this.analyserNode.fftSize = 512;
-      this.analyserNode.smoothingTimeConstant = 0.85;
 
-      // Master Gain
-      this.masterGainNode = this.audioCtx.createGain();
-      this.masterGainNode.gain.value = 1.0;
+      // --- STAGE 1: ACOUSTIC CLARITY INPUT CONDITIONING ---
+      // 1. Sub-Bass DC Decoupler (Removes inaudible DC rumble & distortion below 18Hz)
+      this.subDcFilter = this.audioCtx.createBiquadFilter();
+      this.subDcFilter.type = "highpass";
+      this.subDcFilter.frequency.value = 18;
+      this.subDcFilter.Q.value = 0.707;
 
-      // Stereo Panner for 8D Spatial Audio
-      if (this.audioCtx.createStereoPanner) {
-        this.pannerNode = this.audioCtx.createStereoPanner();
-        this.pannerNode.pan.value = 0;
-      }
+      // 2. Mud & Boxiness Clarifier (Gentle dip at 260Hz for clean instrument definition)
+      this.clarityDeMud = this.audioCtx.createBiquadFilter();
+      this.clarityDeMud.type = "peaking";
+      this.clarityDeMud.frequency.value = 260;
+      this.clarityDeMud.Q.value = 1.0;
+      this.clarityDeMud.gain.value = -0.7;
 
-      // Build 10-band Equalizer chain (default 0dB clean passthrough)
-      let previousNode = this.sourceNode;
+      // 3. Vocal Presence & Crisp Transient Enhancer (+1.2dB at 3.5kHz)
+      this.presenceExciter = this.audioCtx.createBiquadFilter();
+      this.presenceExciter.type = "peaking";
+      this.presenceExciter.frequency.value = 3500;
+      this.presenceExciter.Q.value = 1.1;
+      this.presenceExciter.gain.value = 1.2;
+
+      // 4. Studio Air & Top-End Sparkle Exciter (+1.5dB High-Shelf at 9.5kHz)
+      this.airExciter = this.audioCtx.createBiquadFilter();
+      this.airExciter.type = "highshelf";
+      this.airExciter.frequency.value = 9500;
+      this.airExciter.gain.value = 1.5;
+
+      // Connect input conditioning chain
+      this.sourceNode.connect(this.subDcFilter);
+      this.subDcFilter.connect(this.clarityDeMud);
+      this.clarityDeMud.connect(this.presenceExciter);
+      this.presenceExciter.connect(this.airExciter);
+
+      // --- STAGE 2: 10-BAND PARAMETRIC EQUALIZER ---
+      let previousNode = this.airExciter;
       this.eqFilters = this.eqFrequencies.map((freq, index) => {
         const filter = this.audioCtx.createBiquadFilter();
         if (index === 0) {
@@ -91,14 +109,36 @@ class OxyzenAudioEngine {
         return filter;
       });
 
-      // Connect EQ chain -> Panner -> Master Gain -> Analyser -> Speakers
+      // --- STAGE 3: DYNAMIC STUDIO MASTER LIMITER & COMPRESSOR ---
+      this.masterLimiter = this.audioCtx.createDynamicsCompressor();
+      this.masterLimiter.threshold.value = -12.0;
+      this.masterLimiter.knee.value = 10.0;
+      this.masterLimiter.ratio.value = 2.0;
+      this.masterLimiter.attack.value = 0.008;
+      this.masterLimiter.release.value = 0.20;
+
+      // --- STAGE 4: STEREO PANNER & OUTPUT ---
+      if (this.audioCtx.createStereoPanner) {
+        this.pannerNode = this.audioCtx.createStereoPanner();
+        this.pannerNode.pan.value = 0;
+      }
+
+      this.masterGainNode = this.audioCtx.createGain();
+      this.masterGainNode.gain.value = 1.0;
+
+      this.analyserNode = this.audioCtx.createAnalyser();
+      this.analyserNode.fftSize = 512;
+      this.analyserNode.smoothingTimeConstant = 0.85;
+
+      // Connect DSP chain
       if (this.pannerNode) {
         previousNode.connect(this.pannerNode);
-        this.pannerNode.connect(this.masterGainNode);
+        this.pannerNode.connect(this.masterLimiter);
       } else {
-        previousNode.connect(this.masterGainNode);
+        previousNode.connect(this.masterLimiter);
       }
-      
+
+      this.masterLimiter.connect(this.masterGainNode);
       this.masterGainNode.connect(this.analyserNode);
       this.analyserNode.connect(this.audioCtx.destination);
 

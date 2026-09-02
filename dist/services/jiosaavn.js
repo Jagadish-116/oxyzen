@@ -102,7 +102,7 @@ export async function formatSongObject(raw, resolveStreams = true) {
     const hasLyrics = raw.has_lyrics === 'true' || raw.has_lyrics === true || (raw.more_info && raw.more_info.has_lyrics === 'true');
     const language = raw.language || (raw.more_info && raw.more_info.language) || '';
     let downloadUrl = [];
-    let streamUrl = '';
+    let streamUrl = `/api/stream/${id}`;
     if (resolveStreams && encryptedUrl) {
         downloadUrl = await generateStreamUrls(encryptedUrl);
         if (downloadUrl.length > 0) {
@@ -131,7 +131,7 @@ export async function formatSongObject(raw, resolveStreams = true) {
 /**
  * Searches songs on JioSaavn with pagination and caching
  */
-export async function searchSongs(query, page = 1, limit = 20) {
+export async function searchSongs(query, page = 1, limit = 20, resolveStreams = false) {
     if (!query || !query.trim()) {
         return { results: [], total: 0, start: 0 };
     }
@@ -142,25 +142,44 @@ export async function searchSongs(query, page = 1, limit = 20) {
             return cached.data;
         }
     }
-    try {
-        const url = `${SAAVN_BASE_URL}?__call=search.getResults&_format=json&_marker=0&cc=in&includeMetaTags=1&p=${page}&n=${limit}&q=${encodeURIComponent(query)}`;
-        const res = await fetch(url, { headers: DEFAULT_HEADERS });
-        if (!res.ok)
-            throw new Error(`Search API HTTP ${res.status}`);
-        const data = await res.json();
-        const rawResults = data.results || (data.data && data.data.results) || [];
-        const total = parseInt(String(data.total || 0), 10) || rawResults.length;
-        const start = parseInt(String(data.start || 0), 10);
-        const formatPromises = rawResults.map((raw) => formatSongObject(raw, true));
-        const results = await Promise.all(formatPromises);
-        const out = { results, total, start };
-        searchCache.set(cacheKey, { timestamp: Date.now(), data: out });
-        return out;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const url = `${SAAVN_BASE_URL}?__call=search.getResults&_format=json&_marker=0&cc=in&includeMetaTags=1&p=${page}&n=${limit}&q=${encodeURIComponent(query)}`;
+            const res = await fetch(url, {
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    'User-Agent': attempt === 0
+                        ? DEFAULT_HEADERS['User-Agent']
+                        : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1'
+                }
+            });
+            if (!res.ok) {
+                if (attempt === 0) {
+                    await new Promise(r => setTimeout(r, 100));
+                    continue;
+                }
+                throw new Error(`Search API HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const rawResults = data.results || (data.data && data.data.results) || [];
+            const total = parseInt(String(data.total || 0), 10) || rawResults.length;
+            const start = parseInt(String(data.start || 0), 10);
+            const formatPromises = rawResults.map((raw) => formatSongObject(raw, resolveStreams));
+            const results = await Promise.all(formatPromises);
+            const out = { results, total, start };
+            searchCache.set(cacheKey, { timestamp: Date.now(), data: out });
+            return out;
+        }
+        catch (err) {
+            if (attempt === 0) {
+                await new Promise(r => setTimeout(r, 100));
+                continue;
+            }
+            console.warn(`JioSaavn search notice for "${query}":`, err);
+            return { results: [], total: 0, start: 0 };
+        }
     }
-    catch (err) {
-        console.error('JioSaavn search error:', err);
-        return { results: [], total: 0, start: 0 };
-    }
+    return { results: [], total: 0, start: 0 };
 }
 /**
  * Search suggestions autocomplete for searchbar
@@ -247,63 +266,134 @@ export async function getCharts() {
         { id: 'tamil_mass', title: 'Tamil Blockbuster Beats', image: '/static/assets/logo.png', count: 50 }
     ];
 }
+function getNormalizedTitleKey(title) {
+    return (title || '')
+        .toLowerCase()
+        .replace(/\s*\([^)]*\)/g, '')
+        .replace(/\s*\[[^\]]*\]/g, '')
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+}
+const KINDRED_ARTIST_CLUSTERS = {
+    telugu: {
+        'sid sriram': ['Anurag Kulkarni', 'Devi Sri Prasad', 'Thaman S', 'Ram Miriyala', 'Mickey J Meyer', 'Haricharan', 'Karthik', 'Armaan Malik'],
+        'anurag kulkarni': ['Sid Sriram', 'Ram Miriyala', 'Devi Sri Prasad', 'Thaman S', 'Chaitan Bharadwaj', 'Kaala Bhairava'],
+        'devi sri prasad': ['Thaman S', 'Sid Sriram', 'Sagar', 'Jaspreet Jasz', 'Shankar Mahadevan', 'Anirudh Ravichander'],
+        'thaman s': ['Devi Sri Prasad', 'Anirudh Ravichander', 'Sid Sriram', 'Armaan Malik', 'Sri Krishna'],
+        'ram miriyala': ['Anurag Kulkarni', 'Sid Sriram', 'Mangli', 'Bheems Ceciroleo', 'Chaitan Bharadwaj'],
+        'spb': ['S.P. Balasubrahmanyam', 'K.J. Yesudas', 'K.S. Chithra', 'S. Janaki', 'Ilaiyaraaja', 'Mano'],
+        'ilaiyaraaja': ['S.P. Balasubrahmanyam', 'K.S. Chithra', 'S. Janaki', 'Mano', 'K.J. Yesudas']
+    },
+    hindi: {
+        'arijit singh': ['Atif Aslam', 'Mohit Chauhan', 'KK', 'Vishal Mishra', 'Pritam', 'Armaan Malik', 'Jubin Nautiyal', 'Sachin-Jigar', 'Mithoon'],
+        'atif aslam': ['Arijit Singh', 'KK', 'Mohit Chauhan', 'Mustafa Zahid', 'Pritam', 'Rahat Fateh Ali Khan'],
+        'kk': ['Mohit Chauhan', 'Shaan', 'Lucky Ali', 'Pritam', 'Arijit Singh', 'Sonu Nigam'],
+        'pritam': ['Arijit Singh', 'Mohit Chauhan', 'KK', 'Atif Aslam', 'Amit Trivedi', 'Vishal-Shekhar'],
+        'ar rahman': ['A.R. Rahman', 'Mohit Chauhan', 'Javed Ali', 'Hariharan', 'Shankar Mahadevan', 'Sonu Nigam'],
+        'sonu nigam': ['Shaan', 'Udit Narayan', 'Kumar Sanu', 'Alka Yagnik', 'Abhijeet Bhattacharya', 'KK']
+    },
+    tamil: {
+        'anirudh': ['Anirudh Ravichander', 'A.R. Rahman', 'Yuvan Shankar Raja', 'Harris Jayaraj', 'Sid Sriram', 'Santhosh Narayanan'],
+        'yuvan shankar raja': ['Harris Jayaraj', 'Anirudh Ravichander', 'A.R. Rahman', 'Ilaiyaraaja', 'Vijay Antony'],
+        'ar rahman': ['Harris Jayaraj', 'Yuvan Shankar Raja', 'Anirudh Ravichander', 'Sid Sriram', 'Karthik', 'Unni Menon']
+    },
+    english: {
+        'the weeknd': ['Bruno Mars', 'Post Malone', 'Dua Lipa', 'Zayn', 'Drake', 'Frank Ocean', 'Kendrick Lamar'],
+        'taylor swift': ['Olivia Rodrigo', 'Billie Eilish', 'Sabrina Carpenter', 'Gracie Abrams', 'Lana Del Rey', 'Dua Lipa', 'Ed Sheeran'],
+        'ed sheeran': ['Shawn Mendes', 'Lewis Capaldi', 'James Arthur', 'Sam Smith', 'Charlie Puth', 'Harry Styles'],
+        'eminem': ['Dr. Dre', '50 Cent', 'Kendrick Lamar', 'J. Cole', 'Snoop Dogg', 'NF'],
+        'coldplay': ['Imagine Dragons', 'OneRepublic', 'The Script', 'Maroon 5', 'Keane', 'Snow Patrol']
+    }
+};
 /**
  * Deep Kindred Vibe Radar recommendations algorithm
- * Adapts to the genre and language of the playing song (and artist/composer style)
- * rather than searching for song title words. Returns 50+ deduplicated songs!
+ * Adapts strictly to the language and kindred musical style/genre of the playing track
+ * with ZERO language cross-interference and strict normalized title deduplication.
+ * Returns 50+ rich, authentic songs!
  */
 export async function getVibeRecommendations(songId, artist, title, language) {
     try {
-        const lang = (language && language.trim()) ? language.trim() : 'Telugu';
-        // Artist / Composer extractions
-        const artistParts = (artist || '').split(/[,&/|]/).map(a => a.trim()).filter(a => a.length > 0 && a !== 'Unknown Artist');
+        let rawLang = (language && language.trim()) ? language.trim().toLowerCase() : 'telugu';
+        if (rawLang === 'unknown' || rawLang === 'null')
+            rawLang = 'telugu';
+        const capitalizedLang = rawLang.charAt(0).toUpperCase() + rawLang.slice(1);
+        // Primary & Secondary Artist extractions
+        const cleanArtistStr = (artist || '').replace(/\s*\([^)]*\)/g, '');
+        const artistParts = cleanArtistStr.split(/[,&/|]/).map(a => a.trim()).filter(a => a.length > 0 && a !== 'Unknown Artist');
         const primaryArtist = artistParts[0] || '';
         const secondaryArtist = artistParts[1] || '';
+        // Find kindred cluster artists in this language
+        const langCluster = KINDRED_ARTIST_CLUSTERS[rawLang] || {};
+        let kindredArtists = [];
+        const pLow = primaryArtist.toLowerCase();
+        for (const [key, cluster] of Object.entries(langCluster)) {
+            if (pLow.includes(key) || key.includes(pLow)) {
+                kindredArtists = cluster;
+                break;
+            }
+        }
         const queries = [];
-        // 1. Language & Artist Genre Catalog
+        // 1. Primary Artist & Kindred Artist Catalog in target language
         if (primaryArtist) {
-            queries.push(`${lang} ${primaryArtist} Top Hits`);
-            queries.push(`${lang} ${primaryArtist} Best Melodies`);
-            queries.push(`${lang} ${primaryArtist} Chartbusters`);
+            queries.push(`${capitalizedLang} ${primaryArtist} Best Songs`);
+            queries.push(`${capitalizedLang} ${primaryArtist} Hits`);
         }
         if (secondaryArtist) {
-            queries.push(`${lang} ${secondaryArtist} Melodies`);
+            queries.push(`${capitalizedLang} ${secondaryArtist} Songs`);
         }
-        // 2. Language Genre & Musical Style Anthems (NOT song title words)
-        queries.push(`${lang} Romantic Melodies Chartbusters`);
-        queries.push(`${lang} Superhit Movie Melodies`);
-        queries.push(`${lang} Trending Beats and Hits`);
-        queries.push(`${lang} Acoustic Chill Songs`);
-        // Execute multi-query search in parallel across multiple pages
-        const searchPromises = [];
-        for (const q of queries) {
-            searchPromises.push(searchSongs(q, 1, 20).catch(() => ({ results: [] })));
-            searchPromises.push(searchSongs(q, 2, 20).catch(() => ({ results: [] })));
-        }
+        // Add up to 3 kindred artists from the cluster
+        kindredArtists.slice(0, 3).forEach(k => {
+            queries.push(`${capitalizedLang} ${k} Hits`);
+        });
+        // 2. Pure Genre & Musical Style Anthems in target language
+        queries.push(`${capitalizedLang} Romantic Melodies`);
+        queries.push(`${capitalizedLang} Superhit Movie Melodies`);
+        queries.push(`${capitalizedLang} Top Hits Chartbusters`);
+        queries.push(`${capitalizedLang} Acoustic Chill`);
+        queries.push(`${capitalizedLang} Evergreen Masterpieces`);
+        // Execute multi-query search in parallel
+        const searchPromises = queries.map(q => searchSongs(q, 1, 20).catch(() => ({ results: [] })));
         const resultsArrays = await Promise.all(searchPromises);
         const mergedTracks = [];
         const seenIds = new Set();
+        const seenTitleKeys = new Set();
         if (songId)
             seenIds.add(songId);
+        if (title)
+            seenTitleKeys.add(getNormalizedTitleKey(title));
         for (const res of resultsArrays) {
-            for (const track of res.results) {
-                if (!seenIds.has(track.id)) {
+            for (const track of (res.results || [])) {
+                // STRICT LANGUAGE ENFORCEMENT: Filter out songs from other languages
+                const trackLang = (track.language || '').trim().toLowerCase();
+                if (trackLang && trackLang !== rawLang) {
+                    continue; // Skip foreign / other language songs!
+                }
+                const titleKey = getNormalizedTitleKey(track.title);
+                if (!seenIds.has(track.id) && (!titleKey || !seenTitleKeys.has(titleKey))) {
                     seenIds.add(track.id);
+                    if (titleKey)
+                        seenTitleKeys.add(titleKey);
                     mergedTracks.push(track);
                 }
             }
         }
-        // Ensure plenty of songs (at least 50 songs)
+        // Ensure plenty of songs (at least 50 songs in that language)
         if (mergedTracks.length < 50) {
-            const fallbackRes = await searchSongs(`${lang} evergreen melodies superhits`, 1, 40);
-            for (const track of fallbackRes.results) {
-                if (!seenIds.has(track.id)) {
+            const fallbackRes = await searchSongs(`${capitalizedLang} Top Trending Songs Hits`, 1, 40).catch(() => ({ results: [] }));
+            for (const track of (fallbackRes.results || [])) {
+                const trackLang = (track.language || '').trim().toLowerCase();
+                if (trackLang && trackLang !== rawLang)
+                    continue;
+                const titleKey = getNormalizedTitleKey(track.title);
+                if (!seenIds.has(track.id) && (!titleKey || !seenTitleKeys.has(titleKey))) {
                     seenIds.add(track.id);
+                    if (titleKey)
+                        seenTitleKeys.add(titleKey);
                     mergedTracks.push(track);
                 }
             }
         }
-        return mergedTracks.slice(0, 50);
+        return mergedTracks.slice(0, 60);
     }
     catch (err) {
         console.warn('Error in getVibeRecommendations:', err);
@@ -327,7 +417,44 @@ export async function getExploreFeed(profile, currentTrack) {
         const userCombinedTracks = [...likesList, ...historyList];
         const isNewUser = userCombinedTracks.length === 0;
         const globalSeenIds = new Set();
+        const globalSeenTitles = new Set();
         const sections = [];
+        const dedupeTracks = (list, limit = 30, targetLang) => {
+            const out = [];
+            const tLang = (targetLang || '').toLowerCase().trim();
+            for (const t of list) {
+                if (tLang) {
+                    const trackLang = (t.language || '').toLowerCase().trim();
+                    if (trackLang && trackLang !== tLang)
+                        continue; // Filter foreign language tracks!
+                }
+                const titleKey = getNormalizedTitleKey(t.title);
+                if (!globalSeenIds.has(t.id) && (!titleKey || !globalSeenTitles.has(titleKey))) {
+                    globalSeenIds.add(t.id);
+                    if (titleKey)
+                        globalSeenTitles.add(titleKey);
+                    out.push(t);
+                    if (out.length >= limit)
+                        break;
+                }
+            }
+            return out;
+        };
+        // Live Playing Track Resonance (if a track is currently active)
+        if (currentTrack && currentTrack.title) {
+            const adaptiveTracks = await getVibeRecommendations(currentTrack.id, currentTrack.artist, currentTrack.title, currentTrack.language || lang1);
+            const topAdaptive = dedupeTracks(adaptiveTracks, 30, currentTrack.language || lang1);
+            if (topAdaptive.length > 0) {
+                sections.push({
+                    id: 'live_adaptive_resonance',
+                    title: `✨ Because You Listened to "${currentTrack.title}"`,
+                    tagline: `Kindred acoustic harmonies & genre hits matching ${currentTrack.artist || 'the song'}`,
+                    badge: 'AI RESONANCE',
+                    color: '#22D3EE',
+                    tracks: topAdaptive
+                });
+            }
+        }
         if (isNewUser) {
             // ================= NEW USER FEED =================
             // 1. Global English Trending Hits
@@ -345,23 +472,11 @@ export async function getExploreFeed(profile, currentTrack) {
                 searchSongs(`${lang1} Evergreen Melodies`, 1, 25).catch(() => ({ results: [] })),
                 searchSongs(`${lang1} Party Dance Hits`, 1, 25).catch(() => ({ results: [] }))
             ]);
-            const dedupeTracks = (list, limit = 30) => {
-                const out = [];
-                for (const t of list) {
-                    if (!globalSeenIds.has(t.id)) {
-                        globalSeenIds.add(t.id);
-                        out.push(t);
-                        if (out.length >= limit)
-                            break;
-                    }
-                }
-                return out;
-            };
-            const englishTracks = dedupeTracks([...(englishPopRes.results || []), ...(globalTopRes.results || [])], 30);
-            const regionalTracks = dedupeTracks([...(langHitsRes.results || []), ...(langTrendingRes.results || [])], 30);
-            const nationwideTracks = dedupeTracks([...(trendingIndiaRes.results || []), ...(hindiMelodyRes.results || [])], 30);
-            const classicTracks = dedupeTracks(evergreenRes.results || [], 25);
-            const partyTracks = dedupeTracks(partyRes.results || [], 25);
+            const englishTracks = dedupeTracks([...(englishPopRes.results || []), ...(globalTopRes.results || [])], 30, 'english');
+            const regionalTracks = dedupeTracks([...(langHitsRes.results || []), ...(langTrendingRes.results || [])], 30, lang1);
+            const nationwideTracks = dedupeTracks([...(trendingIndiaRes.results || []), ...(hindiMelodyRes.results || [])], 30, 'hindi');
+            const classicTracks = dedupeTracks(evergreenRes.results || [], 25, lang1);
+            const partyTracks = dedupeTracks(partyRes.results || [], 25, lang1);
             const hero = regionalTracks[0] || englishTracks[0] || nationwideTracks[0] || null;
             if (englishTracks.length > 0) {
                 sections.push({
@@ -438,24 +553,12 @@ export async function getExploreFeed(profile, currentTrack) {
             searchSongs(`${lang1} Trending Hits`, 1, 25).catch(() => ({ results: [] })),
             searchSongs(`${lang1} Top Hits`, 1, 25).catch(() => ({ results: [] }))
         ]);
-        const dedupeTracks = (list, limit = 30) => {
-            const out = [];
-            for (const t of list) {
-                if (!globalSeenIds.has(t.id)) {
-                    globalSeenIds.add(t.id);
-                    out.push(t);
-                    if (out.length >= limit)
-                        break;
-                }
-            }
-            return out;
-        };
-        const popularTracks = dedupeTracks([...(langPopRes.results || []), ...(langHitsRes.results || []), ...(popularRes.results || [])], 30);
+        const popularTracks = dedupeTracks([...(langPopRes.results || []), ...(langHitsRes.results || []), ...(popularRes.results || [])], 30, lang1);
         const hero = popularTracks[0] || null;
         sections.push({
             id: 'popular_chartbusters',
-            title: `🔥 All-Time Popular & Trending Chartbusters`,
-            tagline: `Nationwide & ${lang1} chart-topping blockbusters with millions of streams`,
+            title: `🔥 All-Time Popular & Trending Chartbusters in ${lang1}`,
+            tagline: `${lang1} chart-topping blockbusters with millions of streams`,
             badge: 'HOTTEST HITS',
             color: '#F5C542',
             tracks: popularTracks
@@ -464,7 +567,7 @@ export async function getExploreFeed(profile, currentTrack) {
         const historyQueries = [];
         topArtists.slice(0, 3).forEach(art => {
             historyQueries.push(`${lang1} ${art} Best Melodies`);
-            historyQueries.push(`${art} Superhit Songs`);
+            historyQueries.push(`${lang1} ${art} Superhit Songs`);
         });
         historyQueries.push(`${lang1} Romantic Melodies`);
         historyQueries.push(`${lang1} Acoustic Chill`);
@@ -476,7 +579,7 @@ export async function getExploreFeed(profile, currentTrack) {
                 rawHistoryTracks.push(t);
             }
         }
-        const historyPersonalizedTracks = dedupeTracks(rawHistoryTracks, 30);
+        const historyPersonalizedTracks = dedupeTracks(rawHistoryTracks, 30, lang1);
         if (historyPersonalizedTracks.length > 0) {
             sections.push({
                 id: 'history_based_recommendations',
@@ -568,13 +671,13 @@ export function getMoodCategories() {
             color: '#EC4899',
             gradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Romantic Melodies', 'Sid Sriram Telugu Love Hits', 'Anurag Kulkarni Telugu Melodies', 'Telugu Love Songs Superhits'],
-                hindi: ['Hindi Romantic Melodies', 'Arijit Singh Love Songs', 'Pritam Romantic Hits', 'Shreya Ghoshal Melodies'],
-                tamil: ['Tamil Romantic Melodies', 'Anirudh Love Hits', 'Sid Sriram Tamil Melodies', 'Tamil Love Songs'],
-                english: ['English Romantic Pop Hits', 'Ed Sheeran Romantic Love', 'Acoustic Love Ballads English'],
-                punjabi: ['Punjabi Romantic Songs', 'B Praak Romantic Hits', 'Jaani Punjabi Melodies'],
-                kannada: ['Kannada Romantic Melodies', 'Sanjith Hegde Kannada Love', 'Kannada Love Songs'],
-                malayalam: ['Malayalam Romantic Melodies', 'Hesham Abdul Wahab Love', 'Malayalam Love Hits']
+                telugu: ['Telugu Love Hits', 'Telugu Melody Songs', 'Telugu Romantic Songs', 'Sid Sriram Telugu Hits'],
+                hindi: ['Hindi Love Hits', 'Hindi Romantic Songs', 'Bollywood Love Songs', 'Arijit Singh Love Songs'],
+                tamil: ['Tamil Love Hits', 'Tamil Romantic Songs', 'Tamil Melody Songs', 'Anirudh Love Hits'],
+                english: ['English Love Songs', 'English Romantic Pop', 'Love Ballads English', 'Ed Sheeran Love Songs'],
+                punjabi: ['Punjabi Romantic Songs', 'B Praak Love Songs', 'Jaani Punjabi Hits'],
+                kannada: ['Kannada Love Hits', 'Kannada Romantic Melodies', 'Kannada Melody Songs'],
+                malayalam: ['Malayalam Love Hits', 'Malayalam Romantic Melodies', 'Malayalam Melody Songs']
             }
         },
         {
@@ -586,13 +689,13 @@ export function getMoodCategories() {
             color: '#10B981',
             gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Lofi Slowed Reverb', 'Telugu Chill Acoustic', 'Telugu Midnight Lofi Beats', 'Telugu Peaceful Melodies'],
-                hindi: ['Hindi Slowed Reverb Lofi', 'Bollywood Lofi Mix', 'Midnight Hindi Chillhop', 'Arijit Lofi Slowed'],
-                tamil: ['Tamil Lofi Slowed Reverb', 'Tamil Midnight Chill', 'Tamil Acoustic Lofi'],
-                english: ['Lofi Hip Hop Chill Beats', 'Midnight Bedroom Pop Lofi', 'Acoustic Chillhop Relax'],
-                punjabi: ['Punjabi Lofi Slowed', 'Punjabi Acoustic Chill', 'Punjabi Midnight Reverb'],
-                kannada: ['Kannada Lofi Slowed', 'Kannada Acoustic Chill'],
-                malayalam: ['Malayalam Lofi Slowed', 'Malayalam Acoustic Chill']
+                telugu: ['Telugu Chill Melodies', 'Telugu Acoustic Melodies', 'Telugu Peaceful Songs', 'Telugu Slow Melodies'],
+                hindi: ['Hindi Lofi Chill', 'Hindi Acoustic Songs', 'Bollywood Lofi Chill', 'Hindi Chill Melodies'],
+                tamil: ['Tamil Lofi Chill', 'Tamil Acoustic Songs', 'Tamil Chill Melodies'],
+                english: ['English Lofi Chill', 'Chillout Acoustic Pop', 'Lofi Beats Study', 'Midnight Chill Beats'],
+                punjabi: ['Punjabi Acoustic Chill', 'Punjabi Slow Melodies'],
+                kannada: ['Kannada Acoustic Melodies', 'Kannada Peaceful Songs'],
+                malayalam: ['Malayalam Acoustic Melodies', 'Malayalam Chill Melodies']
             }
         },
         {
@@ -604,13 +707,13 @@ export function getMoodCategories() {
             color: '#8B5CF6',
             gradient: 'linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Sad Heartbreak Melodies', 'Devi Sri Prasad Emotional Songs', 'Sid Sriram Sad Telugu', 'Telugu Breakup Songs'],
-                hindi: ['Hindi Sad Melodies', 'Arijit Singh Heartbreak Songs', 'B Praak Sad Ballads', 'Bollywood Emotional Songs'],
-                tamil: ['Tamil Sad Melodies', 'Dhanush Heartbreak Songs', 'Yuvan Shankar Raja Sad Hits'],
-                english: ['Sad Pop Ballads', 'Lewis Capaldi Heartbreak', 'Adele Emotional Ballads'],
-                punjabi: ['Punjabi Sad Songs', 'B Praak Heartbreak Hits', 'Kaka Sad Punjabi'],
-                kannada: ['Kannada Sad Melodies', 'Kannada Breakup Songs'],
-                malayalam: ['Malayalam Sad Melodies', 'Malayalam Heartbreak Hits']
+                telugu: ['Telugu Sad Songs', 'Telugu Emotional Songs', 'Telugu Heartbreak Songs', 'Telugu Breakup Songs'],
+                hindi: ['Hindi Sad Songs', 'Hindi Emotional Songs', 'Bollywood Sad Songs', 'Arijit Singh Sad Songs'],
+                tamil: ['Tamil Sad Songs', 'Tamil Emotional Songs', 'Tamil Heartbreak Songs'],
+                english: ['English Sad Songs', 'Sad Pop Ballads', 'Adele Emotional Songs', 'Heartbreak Pop Hits'],
+                punjabi: ['Punjabi Sad Songs', 'B Praak Sad Songs', 'Kaka Sad Songs'],
+                kannada: ['Kannada Sad Songs', 'Kannada Emotional Songs'],
+                malayalam: ['Malayalam Sad Songs', 'Malayalam Emotional Songs']
             }
         },
         {
@@ -622,13 +725,13 @@ export function getMoodCategories() {
             color: '#F59E0B',
             gradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Feel Good Songs', 'Telugu Upbeat Cheerful Hits', 'Thaman S Joyful Melodies', 'Telugu Happy Morning Songs'],
-                hindi: ['Hindi Feel Good Pop', 'Bollywood Happy Songs', 'Upbeat Cheerful Hindi Hits', 'Amit Trivedi Joyful Melodies'],
-                tamil: ['Tamil Feel Good Songs', 'Anirudh Upbeat Hits', 'Tamil Cheerful Melodies'],
-                english: ['Happy Upbeat Pop Anthems', 'Feel Good Radio Hits', 'Sunny Morning Acoustic Pop'],
-                punjabi: ['Punjabi Happy Songs', 'Diljit Dosanjh Upbeat Hits', 'Punjabi Joyful Hits'],
-                kannada: ['Kannada Feel Good Songs', 'Kannada Happy Melodies'],
-                malayalam: ['Malayalam Feel Good Songs', 'Malayalam Happy Hits']
+                telugu: ['Telugu Happy Songs', 'Telugu Feel Good Songs', 'Telugu Upbeat Songs', 'Telugu Joyful Melodies'],
+                hindi: ['Hindi Happy Songs', 'Bollywood Feel Good Songs', 'Hindi Joyful Songs', 'Hindi Upbeat Pop'],
+                tamil: ['Tamil Happy Songs', 'Tamil Feel Good Songs', 'Tamil Upbeat Songs'],
+                english: ['Happy Upbeat Pop', 'Feel Good Radio Hits', 'Sunny Morning Pop', 'Upbeat Radio Hits'],
+                punjabi: ['Punjabi Happy Songs', 'Diljit Dosanjh Upbeat Songs', 'Punjabi Joyful Hits'],
+                kannada: ['Kannada Happy Songs', 'Kannada Feel Good Songs'],
+                malayalam: ['Malayalam Happy Songs', 'Malayalam Feel Good Songs']
             }
         },
         {
@@ -640,13 +743,13 @@ export function getMoodCategories() {
             color: '#F43F5E',
             gradient: 'linear-gradient(135deg, rgba(244, 63, 94, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Gym Motivation Songs', 'Telugu Mass High BPM Beats', 'Telugu Fast Beat Energetic', 'Thaman S Mass Beats'],
-                hindi: ['Hindi Gym Motivation High BPM', 'Bollywood Workout Songs', 'Hindi Trap Heavy Beats', 'Ranveer Singh High Energy'],
-                tamil: ['Tamil Gym Motivation', 'Tamil Mass Fast Beats', 'Anirudh High Energy BGM'],
-                english: ['Gym Motivation Heavy EDM', 'Workout Trap Bass Boosted', 'High BPM Cardio Adrenaline'],
-                punjabi: ['Punjabi Gym Workout Hits', 'Sidhu Moose Wala Energetic', 'AP Dhillon High Energy'],
-                kannada: ['Kannada Mass Workout Songs', 'KGF High Energy Beats'],
-                malayalam: ['Malayalam Mass Workout Songs', 'Malayalam Energetic Beats']
+                telugu: ['Telugu Mass Songs', 'Telugu Fast Beats', 'Telugu Gym Motivation', 'Thaman Mass Beats'],
+                hindi: ['Hindi Gym Motivation', 'Bollywood Workout Songs', 'Hindi Fast Beats', 'Hindi High Energy'],
+                tamil: ['Tamil Mass Fast Beats', 'Tamil Gym Motivation', 'Anirudh High Energy'],
+                english: ['Gym Motivation EDM', 'Workout Trap Bass', 'High BPM Cardio Adrenaline', 'Workout Beast Mode'],
+                punjabi: ['Punjabi Gym Workout', 'Sidhu Moose Wala Energetic', 'AP Dhillon Energetic'],
+                kannada: ['Kannada Mass Workout', 'KGF High Energy Beats'],
+                malayalam: ['Malayalam Mass Songs', 'Malayalam Energetic Beats']
             }
         },
         {
@@ -658,13 +761,13 @@ export function getMoodCategories() {
             color: '#A855F7',
             gradient: 'linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Party Dance Hits', 'Telugu DJ Remix Nonstop', 'Telugu Wedding Dance Songs', 'Telugu Mass Party Bangers'],
-                hindi: ['Bollywood Party Songs', 'Hindi Club Bangers', 'Badshah Neha Kakkar Dance', 'Bollywood Wedding DJ Remix'],
-                tamil: ['Tamil Party Dance Songs', 'Tamil DJ Remix Club', 'Anirudh Dancefloor Bangers'],
-                english: ['Club Dance EDM Bangers', 'Festival Electronic Dance', 'Top Dance Pop Hits'],
-                punjabi: ['Punjabi Party Dance Songs', 'Bhangra Club Bangers', 'Yo Yo Honey Singh Party Hits'],
-                kannada: ['Kannada Party Dance Songs', 'Kannada Club Remix'],
-                malayalam: ['Malayalam Party Dance Songs', 'Malayalam Club Hits']
+                telugu: ['Telugu Party Songs', 'Telugu Dance Hits', 'Telugu Mass Hits', 'Telugu Wedding Dance'],
+                hindi: ['Hindi Party Songs', 'Bollywood Dance Hits', 'Hindi Club Songs', 'Bollywood DJ Songs'],
+                tamil: ['Tamil Party Songs', 'Tamil Dance Hits', 'Tamil Club Songs'],
+                english: ['Club Dance EDM', 'Party Pop Hits', 'Festival Dance Hits', 'Top Dance Pop'],
+                punjabi: ['Punjabi Party Songs', 'Bhangra Club Hits', 'Yo Yo Honey Singh Hits'],
+                kannada: ['Kannada Party Songs', 'Kannada Dance Hits'],
+                malayalam: ['Malayalam Party Songs', 'Malayalam Dance Hits']
             }
         },
         {
@@ -676,11 +779,11 @@ export function getMoodCategories() {
             color: '#06B6D4',
             gradient: 'linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Soulful Melodies', 'Telugu Classical Fusion Songs', 'SPB Soulful Melodies'],
-                hindi: ['Rahat Fateh Ali Khan Sufi', 'Nusrat Fateh Ali Khan Qawwali', 'Coke Studio Sufi Classics', 'Kailash Kher Sufi'],
-                tamil: ['Tamil Sufi Fusion', 'AR Rahman Sufi Melodies'],
-                english: ['Spiritual Acoustic Soul', 'Meditative Ambient Mystic'],
-                punjabi: ['Punjabi Sufi Songs', 'Satinder Sartaaj Sufi', 'Wadali Brothers Qawwali'],
+                telugu: ['Telugu Soulful Melodies', 'Telugu Classical Fusion', 'SPB Soulful Songs'],
+                hindi: ['Hindi Sufi Songs', 'Coke Studio Sufi Classics', 'Rahat Fateh Ali Khan Songs', 'Nusrat Fateh Ali Khan'],
+                tamil: ['Tamil Soulful Melodies', 'AR Rahman Soulful Hits'],
+                english: ['Spiritual Acoustic Soul', 'Meditative Soul Melodies'],
+                punjabi: ['Punjabi Sufi Songs', 'Satinder Sartaaj Sufi', 'Wadali Brothers Songs'],
                 kannada: ['Kannada Soulful Bhavageethe', 'Kannada Classical Fusion'],
                 malayalam: ['Malayalam Soulful Melodies', 'Malayalam Semi Classical']
             }
@@ -694,13 +797,13 @@ export function getMoodCategories() {
             color: '#EF4444',
             gradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Rock Songs', 'Devi Sri Prasad Rock Hits', 'Telugu High Voltage Rock'],
-                hindi: ['Indian Rock Anthems', 'Euphoria Band Hindi Rock', 'Junoon Rock Songs', 'Bollywood Rock Songs'],
-                tamil: ['Tamil Rock Songs', 'Anirudh Rock Anthems'],
-                english: ['Classic Rock Anthems', 'Modern Alternative Rock', 'Hard Rock Heavy Guitar'],
-                punjabi: ['Punjabi Rock Beats', 'Punjabi Alternative Metal'],
-                kannada: ['Kannada Rock Songs', 'Raghu Dixit Folk Rock'],
-                malayalam: ['Avial Band Malayalam Rock', 'Thaikkudam Bridge Rock']
+                telugu: ['Telugu Rock Songs', 'Telugu High Energy Songs', 'Devi Sri Prasad Rock'],
+                hindi: ['Hindi Rock Songs', 'Indian Rock Anthems', 'Bollywood Rock Songs', 'Euphoria Rock Songs'],
+                tamil: ['Tamil Rock Songs', 'Anirudh Rock Hits'],
+                english: ['English Rock Anthems', 'Alternative Rock Classics', 'Hard Rock Hits', 'Modern Rock Pop'],
+                punjabi: ['Punjabi Rock Beats', 'Punjabi Metal Beats'],
+                kannada: ['Kannada Rock Songs', 'Raghu Dixit Rock'],
+                malayalam: ['Malayalam Rock Songs', 'Thaikkudam Bridge Rock']
             }
         },
         {
@@ -712,13 +815,13 @@ export function getMoodCategories() {
             color: '#3B82F6',
             gradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Mass BGM Themes', 'MM Keeravaani Epic Soundtracks', 'Telugu Heroic Cinema Scores', 'Bahubali RRR BGM'],
-                hindi: ['Bollywood Epic BGM Themes', 'Ajay Atul Heroic Scores', 'Brahmastra Epic Soundtracks'],
-                tamil: ['Tamil Heroic Cinema BGM', 'Anirudh Mass Theme Scores', 'AR Rahman Epic Themes'],
-                english: ['Hans Zimmer Epic Soundtracks', 'Two Steps From Hell Cinematic', 'Trailer Orchestral Scores'],
-                punjabi: ['Punjabi Cinema Mass BGM', 'Punjabi Action Soundtracks'],
-                kannada: ['KGF Ravi Basrur Mass BGM', 'Kantara Epic Folk Scores'],
-                malayalam: ['Malayalam Action Cinema BGM', 'Sushin Shyam Epic Soundtracks']
+                telugu: ['Telugu Mass BGM', 'Telugu Movie Soundtracks', 'MM Keeravaani Soundtracks', 'Bahubali RRR BGM'],
+                hindi: ['Bollywood BGM Themes', 'Hindi Movie Soundtracks', 'Brahmastra Soundtracks', 'Ajay Atul Scores'],
+                tamil: ['Tamil Heroic BGM', 'Anirudh Mass Theme', 'AR Rahman BGM'],
+                english: ['Hans Zimmer Soundtracks', 'Cinematic Scores', 'Epic Orchestral Scores', 'Two Steps From Hell'],
+                punjabi: ['Punjabi Movie Soundtracks', 'Punjabi Action BGM'],
+                kannada: ['KGF BGM Themes', 'Kantara Soundtracks'],
+                malayalam: ['Malayalam Movie Soundtracks', 'Sushin Shyam Soundtracks']
             }
         },
         {
@@ -730,11 +833,11 @@ export function getMoodCategories() {
             color: '#D97706',
             gradient: 'linear-gradient(135deg, rgba(217, 119, 6, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Acoustic Unplugged', 'Telugu Coffeehouse Guitar', 'Telugu Soft Acoustic Melodies'],
-                hindi: ['Bollywood Acoustic Unplugged', 'Hindi Coffeehouse Guitar Songs', 'Prateek Kuhad Acoustic Hits'],
-                tamil: ['Tamil Acoustic Unplugged', 'Tamil Soft Guitar Melodies'],
-                english: ['Acoustic Fingerstyle Singer Songwriter', 'Coffeehouse Acoustic Pop', 'Soft Acoustic Folk'],
-                punjabi: ['Punjabi Acoustic Unplugged', 'Punjabi Soft Guitar Songs'],
+                telugu: ['Telugu Acoustic Unplugged', 'Telugu Guitar Melodies', 'Telugu Soft Melodies'],
+                hindi: ['Hindi Acoustic Unplugged', 'Bollywood Acoustic Songs', 'Prateek Kuhad Songs', 'Hindi Guitar Melodies'],
+                tamil: ['Tamil Acoustic Unplugged', 'Tamil Guitar Melodies', 'Tamil Soft Melodies'],
+                english: ['English Acoustic Songs', 'Singer Songwriter Pop', 'Acoustic Coffeehouse Pop', 'Fingerstyle Guitar Songs'],
+                punjabi: ['Punjabi Acoustic Unplugged', 'Punjabi Guitar Songs'],
                 kannada: ['Kannada Acoustic Unplugged', 'Kannada Soft Melodies'],
                 malayalam: ['Malayalam Acoustic Unplugged', 'Malayalam Guitar Melodies']
             }
@@ -748,9 +851,9 @@ export function getMoodCategories() {
             color: '#F97316',
             gradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Devotional Songs', 'SPB Bhakti Geethalu', 'Lord Shiva Stotram Telugu', 'Venkateswara Suprabhatam Telugu'],
-                hindi: ['Hindi Bhakti Bhajan', 'Gulshan Kumar Bhakti Sagar', 'Shiva Tandava Stotram', 'Hanuman Chalisa Hindi'],
-                tamil: ['Tamil Devotional Songs', 'TM Soundararajan Murugan Bhakti', 'Tamil Temple Chants'],
+                telugu: ['Telugu Devotional Songs', 'Telugu Bhakti Songs', 'Telugu Stotram', 'SPB Bhakti Geethalu'],
+                hindi: ['Hindi Devotional Songs', 'Hindi Bhakti Songs', 'Hindi Bhajan Songs', 'Hanuman Chalisa Hindi'],
+                tamil: ['Tamil Devotional Songs', 'Tamil Bhakti Songs', 'Tamil Temple Chants'],
                 english: ['Sacred Peace Chants', 'Spiritual Meditation Mantras'],
                 punjabi: ['Gurbani Kirtan Shabad', 'Golden Temple Gurbani Live'],
                 kannada: ['Kannada Devotional Songs', 'Kannada Bhakti Geethegalu'],
@@ -766,8 +869,8 @@ export function getMoodCategories() {
             color: '#14B8A6',
             gradient: 'linear-gradient(135deg, rgba(20, 184, 166, 0.22), rgba(17, 17, 24, 0.95))',
             genreQueries: {
-                telugu: ['Telugu Carnatic Classical Ragas', 'Mangalampalli Balamuralikrishna', 'Thyagaraja Kritis Telugu', 'Telugu Classical Fusion'],
-                hindi: ['Hindustani Classical Vocal', 'Pandit Bhimsen Joshi Classical', 'Pandit Ravi Shankar Sitar', 'Hindustani Flute Ragas'],
+                telugu: ['Telugu Carnatic Classical', 'Telugu Classical Vocal', 'Thyagaraja Kritis Telugu', 'Telugu Classical Fusion'],
+                hindi: ['Hindustani Classical Vocal', 'Indian Classical Instrumental', 'Pandit Bhimsen Joshi', 'Pandit Ravi Shankar Sitar'],
                 tamil: ['Carnatic Classical Vocal Tamil', 'MS Subbulakshmi Carnatic', 'Tamil Classical Fusion'],
                 english: ['Classical Orchestral Masterpieces', 'Violin and Cello Classical Melodies'],
                 punjabi: ['Classical Sufi Punjabi Ragas', 'Punjabi Classical Folk'],
@@ -778,50 +881,84 @@ export function getMoodCategories() {
     ];
 }
 /**
- * Rich multilingual Mood Feed: Queries language-specific genre matrices across ALL preferred languages,
- * yielding 50 to 80+ songs!
+ * Rich multilingual Mood Feed: Queries language-specific genre matrices for user's desired language,
+ * with strict language isolation, title deduplication, and returning 60+ authentic tracks!
  */
-export async function getMoodFeed(moodKey, languages = ['Telugu', 'Hindi', 'English']) {
+export async function getMoodFeed(moodKey, languages = ['Telugu', 'Hindi', 'English'], targetLanguage) {
     const categories = getMoodCategories();
     const normalizedKey = (moodKey || 'love').toLowerCase().trim();
     const category = categories.find((c) => c.key === normalizedKey || c.id === normalizedKey) || categories[0];
     const userLangs = (languages && languages.length > 0) ? languages : ['Telugu', 'Hindi', 'English'];
-    // Collect specific queries for each preferred language
+    const activeLang = (targetLanguage && targetLanguage.trim())
+        ? targetLanguage.trim().toLowerCase()
+        : (userLangs[0] || 'Telugu').toLowerCase();
+    const capitalizedLang = activeLang.charAt(0).toUpperCase() + activeLang.slice(1);
+    // Collect specific queries for the desired language
     const searchQueries = [];
-    for (const rawLang of userLangs) {
-        const lKey = rawLang.toLowerCase().trim();
-        const specificQueries = category.genreQueries[lKey] || category.genreQueries['hindi'] || [`${rawLang} ${category.name}`];
-        specificQueries.forEach(q => searchQueries.push(q));
-    }
-    // If few queries, add fallback queries for primary language
-    if (searchQueries.length < 4) {
-        const lKey = (userLangs[0] || 'telugu').toLowerCase();
-        const specificQueries = category.genreQueries[lKey] || [];
-        searchQueries.push(...specificQueries);
-    }
+    const specificQueries = category.genreQueries[activeLang] || category.genreQueries['telugu'] || [`${capitalizedLang} ${category.name} Songs`];
+    specificQueries.forEach(q => searchQueries.push(q));
+    // Add broad genre queries for desired language
+    searchQueries.push(`${capitalizedLang} ${category.name} Chartbusters`);
+    searchQueries.push(`${capitalizedLang} ${category.name} Top Hits`);
     try {
-        // Search page 1 and page 2 across all queries
-        const searchPromises = [];
-        for (const q of searchQueries) {
-            searchPromises.push(searchSongs(q, 1, 20).catch(() => ({ results: [] })));
-            searchPromises.push(searchSongs(q, 2, 20).catch(() => ({ results: [] })));
+        const searchResults = [];
+        for (let i = 0; i < searchQueries.length; i += 2) {
+            const chunk = searchQueries.slice(i, i + 2);
+            const chunkRes = await Promise.all(chunk.map(q => searchSongs(q, 1, 25).catch(() => ({ results: [] }))));
+            searchResults.push(...chunkRes);
+            if (i + 2 < searchQueries.length) {
+                await new Promise(r => setTimeout(r, 40));
+            }
         }
-        const searchResults = await Promise.all(searchPromises);
         const mergedTracks = [];
         const seenIds = new Set();
+        const seenTitleKeys = new Set();
         for (const res of searchResults) {
-            for (const track of res.results) {
-                if (!seenIds.has(track.id)) {
+            for (const track of (res.results || [])) {
+                // STRICT LANGUAGE ENFORCEMENT: Filter out tracks from other languages
+                const trackLang = (track.language || '').trim().toLowerCase();
+                if (trackLang && trackLang !== activeLang && activeLang !== 'all') {
+                    continue;
+                }
+                const titleKey = getNormalizedTitleKey(track.title);
+                if (!seenIds.has(track.id) && (!titleKey || !seenTitleKeys.has(titleKey))) {
                     seenIds.add(track.id);
+                    if (titleKey)
+                        seenTitleKeys.add(titleKey);
                     mergedTracks.push(track);
                 }
             }
         }
-        // Return up to 80 high quality tracks
-        return { mood: category, tracks: mergedTracks.slice(0, 80) };
+        // Fallback if results are low
+        if (mergedTracks.length < 30) {
+            const fallbackRes = await searchSongs(`${capitalizedLang} ${category.name} Superhits`, 1, 40).catch(() => ({ results: [] }));
+            for (const track of (fallbackRes.results || [])) {
+                const trackLang = (track.language || '').trim().toLowerCase();
+                if (trackLang && trackLang !== activeLang && activeLang !== 'all')
+                    continue;
+                const titleKey = getNormalizedTitleKey(track.title);
+                if (!seenIds.has(track.id) && (!titleKey || !seenTitleKeys.has(titleKey))) {
+                    seenIds.add(track.id);
+                    if (titleKey)
+                        seenTitleKeys.add(titleKey);
+                    mergedTracks.push(track);
+                }
+            }
+        }
+        return {
+            mood: category,
+            tracks: mergedTracks.slice(0, 80),
+            activeLanguage: capitalizedLang,
+            availableLanguages: userLangs
+        };
     }
     catch (err) {
         console.error('Error in getMoodFeed:', err);
-        return { mood: category, tracks: [] };
+        return {
+            mood: category,
+            tracks: [],
+            activeLanguage: capitalizedLang,
+            availableLanguages: userLangs
+        };
     }
 }

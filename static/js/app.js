@@ -923,23 +923,29 @@ class OxyzenApp {
       grid.querySelectorAll(".mood-card").forEach(card => {
         card.addEventListener("click", () => {
           const mId = card.dataset.moodId;
-          this.loadMoodStation(mId);
+          this.loadMoodStation(mId, this.activeMoodLanguage);
         });
       });
 
       // Default load active mood station
       if (this.activeMoodKey) {
-        this.loadMoodStation(this.activeMoodKey);
+        this.loadMoodStation(this.activeMoodKey, this.activeMoodLanguage);
       } else {
-        this.loadMoodStation("love");
+        this.loadMoodStation("love", this.activeMoodLanguage);
       }
     } catch (e) {
       console.warn("Failed to load mood categories:", e);
     }
   }
 
-  async loadMoodStation(moodKey) {
+  async loadMoodStation(moodKey, targetLang) {
     this.activeMoodKey = moodKey;
+    if (targetLang) {
+      this.activeMoodLanguage = targetLang;
+    } else if (!this.activeMoodLanguage) {
+      this.activeMoodLanguage = (this.userProfile && this.userProfile.languages && this.userProfile.languages[0]) || 'Telugu';
+    }
+
     if (this.activeView !== "moods") {
       this.switchView("moods");
     }
@@ -956,76 +962,99 @@ class OxyzenApp {
     container.innerHTML = `
       <div style="text-align: center; padding: 40px; color: var(--silver-muted);">
         <div class="sync-spinner" style="margin: 0 auto 12px;"></div>
-        <div>Loading Acoustic Mood Station...</div>
+        <div>Loading ${this.escapeHTML(this.activeMoodLanguage)} Mood Station...</div>
       </div>
     `;
 
     try {
-      const langsParam = encodeURIComponent(this.userProfile.languages.join(","));
-      const res = await fetch(`${API_BASE}/api/moods/${moodKey}?languages=${langsParam}`);
+      const langsParam = encodeURIComponent((this.userProfile.languages || ['Telugu', 'Hindi', 'English']).join(","));
+      const selectedLangParam = encodeURIComponent(this.activeMoodLanguage);
+      const res = await fetch(`${API_BASE}/api/moods/${moodKey}?languages=${langsParam}&language=${selectedLangParam}`);
       const data = await res.json();
       const mood = data.mood || {};
       const tracks = this.registerTracks(data.tracks || []);
-
-      if (tracks.length === 0) {
-        container.innerHTML = `<div style="color: var(--silver-muted); padding: 40px; text-align: center;">No tracks found for this mood. Try changing preferred languages.</div>`;
-        return;
-      }
+      const activeLanguage = data.activeLanguage || this.activeMoodLanguage;
+      const availableLangs = this.userProfile.languages || ['Telugu', 'Hindi', 'English'];
 
       container.innerHTML = `
         <div class="hero-banner" style="background: ${mood.gradient || 'linear-gradient(135deg, rgba(245, 197, 66, 0.2), rgba(17, 17, 21, 0.95))'}; margin-bottom: 24px;">
           <div class="hero-content">
             <span class="hero-badge" style="color: ${mood.color}; border-color: ${mood.color};">✦ ${mood.icon || '🎵'} ACTIVE MOOD STATION</span>
             <h1 class="hero-title">${mood.name || 'Mood Station'}</h1>
-            <p class="hero-desc">${mood.tagline || ''} • Tailored for ${this.userProfile.languages.join(", ")} (${tracks.length} tracks)</p>
-            <div class="hero-actions">
-              <button class="btn-luxury btn-gold-action" id="mood-play-all-btn">▶ Play All</button>
+            <p class="hero-desc">${mood.tagline || ''} • Curated for <strong>${activeLanguage}</strong> (${tracks.length} tracks)</p>
+            
+            <div class="mood-lang-filter-bar">
+              ${availableLangs.map(l => `
+                <button class="mood-lang-pill ${activeLanguage.toLowerCase() === l.toLowerCase() ? 'active' : ''}" data-lang="${l}">
+                  ${l === 'Telugu' || l === 'Hindi' || l === 'Tamil' || l === 'Punjabi' || l === 'Kannada' || l === 'Malayalam' ? '🇮🇳' : '🌐'} ${l}
+                </button>
+              `).join('')}
+            </div>
+
+            <div class="hero-actions" style="margin-top: 18px;">
+              <button class="btn-luxury btn-gold-action" id="mood-play-all-btn">▶ Play All (${tracks.length})</button>
               <button class="btn-luxury" id="mood-shuffle-all-btn">🔀 Shuffle</button>
             </div>
           </div>
         </div>
-        <table class="track-table">
-          <thead>
-            <tr>
-              <th class="row-index-col">#</th>
-              <th>Title</th>
-              <th>Album</th>
-              <th>Duration</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tracks.map((t, idx) => `
-              <tr class="track-row ${this.currentTrack && (this.currentTrack.id === t.id) ? 'active' : ''}" data-track-id="${t.id}">
-                <td class="row-index-col">${idx + 1}</td>
-                <td class="row-track-col">
-                  <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
-                  <div>
-                    <div class="row-title">${t.title}</div>
-                    <div class="row-artist">${t.artist}</div>
-                  </div>
-                </td>
-                <td>${t.album || 'Oxyzen Audio'}</td>
-                <td>${t.duration_formatted || '3:30'}</td>
-                <td style="text-align: right;">
-                  <div class="row-actions">
-                    <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Save to Liked">
-                      ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
-                    </button>
-                    <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
-                    <button class="btn-row-action" data-action="download" title="Download">⬇️</button>
-                  </div>
-                </td>
+
+        ${tracks.length === 0 ? `
+          <div style="color: var(--silver-muted); padding: 40px; text-align: center;">
+            No tracks found for this mood in ${activeLanguage}. Tap another language tab above!
+          </div>
+        ` : `
+          <table class="track-table">
+            <thead>
+              <tr>
+                <th class="row-index-col">#</th>
+                <th>Title</th>
+                <th>Album</th>
+                <th>Duration</th>
+                <th style="text-align: right;">Actions</th>
               </tr>
-            `).join("")}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${tracks.map((t, idx) => `
+                <tr class="track-row ${this.currentTrack && (this.currentTrack.id === t.id) ? 'active' : ''}" data-track-id="${t.id}">
+                  <td class="row-index-col">${idx + 1}</td>
+                  <td class="row-track-col">
+                    <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
+                    <div>
+                      <div class="row-title">${this.escapeHTML(t.title)}</div>
+                      <div class="row-artist">${this.escapeHTML(t.artist)}</div>
+                    </div>
+                  </td>
+                  <td>${this.escapeHTML(t.album || 'Oxyzen Audio')}</td>
+                  <td>${t.duration_formatted || '3:30'}</td>
+                  <td style="text-align: right;">
+                    <div class="row-actions">
+                      <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Save to Liked">
+                        ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
+                      </button>
+                      <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
+                      <button class="btn-row-action" data-action="download" title="Download">⬇️</button>
+                    </div>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `}
       `;
+
+      // Attach language pill click listeners
+      container.querySelectorAll('.mood-lang-pill').forEach(pill => {
+        pill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const target = pill.dataset.lang;
+          this.loadMoodStation(moodKey, target);
+        });
+      });
 
       this.attachTrackRowEventListeners(container, tracks);
 
       const playAllBtn = document.getElementById("mood-play-all-btn");
-      if (playAllBtn) {
+      if (playAllBtn && tracks.length > 0) {
         playAllBtn.addEventListener("click", () => {
           this.setQueue(tracks, 0);
           this.playTrack(tracks[0]);
@@ -1033,7 +1062,7 @@ class OxyzenApp {
       }
 
       const shuffleAllBtn = document.getElementById("mood-shuffle-all-btn");
-      if (shuffleAllBtn) {
+      if (shuffleAllBtn && tracks.length > 0) {
         shuffleAllBtn.addEventListener("click", () => {
           this.isShuffle = true;
           this.setQueue(tracks, 0);
@@ -1085,7 +1114,7 @@ class OxyzenApp {
     if (!container || !track) return;
 
     try {
-      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'Hindi');
+      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'Telugu');
       const res = await fetch(`${API_BASE}/api/recommendations?video_id=${track.id}&artist=${encodeURIComponent(track.artist)}&title=${encodeURIComponent(track.title)}&language=${lang}`);
       const data = await res.json();
       const kindred = this.registerTracks(data.recommendations || []);
@@ -1095,20 +1124,31 @@ class OxyzenApp {
       }
 
       container.innerHTML = `
-        <div class="feed-section" style="background: linear-gradient(135deg, rgba(245, 197, 66, 0.14) 0%, rgba(14, 14, 20, 0.88) 60%); border: 1.5px solid rgba(245, 197, 66, 0.35); border-radius: var(--radius-lg); padding: 22px 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div class="feed-section" style="background: linear-gradient(135deg, rgba(245, 197, 66, 0.14) 0%, rgba(14, 14, 20, 0.88) 60%); border: 1.5px solid rgba(245, 197, 66, 0.35); border-radius: var(--radius-lg); padding: 22px 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 24px;">
           <div class="section-header" style="margin-bottom: 16px;">
             <div>
               <span class="hero-badge" style="margin-bottom: 6px;">✨ LIVE ADAPTIVE RESONANCE</span>
               <h2 class="section-title" style="font-size: 20px;">Because You Listened to "${this.escapeHTML(track.title)}"</h2>
-              <p class="section-tagline">Kindred acoustic frequencies inspired by ${this.escapeHTML(track.artist)}</p>
+              <p class="section-tagline">Kindred ${track.language || 'acoustic'} harmonies & genre hits matching ${this.escapeHTML(track.artist)}</p>
             </div>
-            <span class="brand-tag" style="border-color: var(--gold-accent); color: var(--gold-accent);">AI MATCH</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button class="btn-luxury btn-gold-action" id="adaptive-play-all-btn" style="padding: 6px 14px; font-size: 12px;">▶ Play All (${kindred.length})</button>
+              <span class="brand-tag" style="border-color: var(--gold-accent); color: var(--gold-accent);">AI MATCH</span>
+            </div>
           </div>
           <div class="cards-grid">
-            ${kindred.slice(0, 12).map(t => this.renderMusicCardHTML(t)).join("")}
+            ${kindred.slice(0, 30).map(t => this.renderMusicCardHTML(t)).join("")}
           </div>
         </div>
       `;
+
+      const playAllBtn = document.getElementById("adaptive-play-all-btn");
+      if (playAllBtn) {
+        playAllBtn.addEventListener("click", () => {
+          this.setQueue(kindred, 0);
+          this.playTrack(kindred[0]);
+        });
+      }
 
       container.querySelectorAll(".music-card").forEach((card, idx) => {
         card.addEventListener("click", () => {
@@ -1668,7 +1708,7 @@ class OxyzenApp {
   // -------------------------------------------------------------
   async fetchVibeQueue(track) {
     try {
-      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'hindi');
+      const lang = encodeURIComponent(track.language || this.userProfile.languages[0] || 'Telugu');
       const res = await fetch(`${API_BASE}/api/recommendations?video_id=${track.id || track.videoId}&artist=${encodeURIComponent(track.artist)}&title=${encodeURIComponent(track.title)}&language=${lang}`);
       const data = await res.json();
       this.vibeTracks = this.registerTracks(data.recommendations || []);

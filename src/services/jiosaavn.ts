@@ -1338,49 +1338,77 @@ export async function importPlaylistFromUrl(rawUrl: string): Promise<{
     };
   }
 
-  // 2. Spotify Playlist or Album URL
+  // 2. Spotify Playlist, Album, or Track URL
   if (url.includes('spotify.com')) {
+    const isInviteLink = url.includes('pt=');
     const playlistMatch = url.match(/playlist\/([a-zA-Z0-9]+)/);
     const albumMatch = url.match(/album\/([a-zA-Z0-9]+)/);
+    const trackMatch = url.match(/track\/([a-zA-Z0-9]+)/);
 
-    const entityType = playlistMatch ? 'playlist' : (albumMatch ? 'album' : null);
-    const entityId = playlistMatch ? playlistMatch[1] : (albumMatch ? albumMatch[1] : null);
+    const entityType = playlistMatch ? 'playlist' : (albumMatch ? 'album' : (trackMatch ? 'track' : null));
+    const entityId = playlistMatch ? playlistMatch[1] : (albumMatch ? albumMatch[1] : (trackMatch ? trackMatch[1] : null));
 
     if (!entityType || !entityId) {
-      throw new Error('Invalid Spotify playlist or album link');
+      throw new Error('Invalid Spotify link. Please provide a link to a Spotify playlist, album, or track.');
     }
 
     const embedUrl = `https://open.spotify.com/embed/${entityType}/${entityId}`;
     const embedRes = await fetch(embedUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       }
     });
 
     if (!embedRes.ok) {
+      if (embedRes.status === 404) {
+        if (isInviteLink) {
+          throw new Error('This Spotify playlist is a private collaborative invite link (?pt=...). Spotify restricts invite links to logged-in Spotify app sessions. To import into Oxyzen: Open the playlist in Spotify, tap (•••) > "Make Public", and paste the standard link.');
+        }
+        throw new Error('Spotify playlist not found (404). Please ensure the playlist is set to "Public" in Spotify so Oxyzen can access its tracks.');
+      }
       throw new Error(`Spotify embed fetch failed (HTTP ${embedRes.status})`);
     }
 
     const html = await embedRes.text();
     const idx = html.indexOf('__NEXT_DATA__');
     if (idx === -1) {
+      if (isInviteLink) {
+        throw new Error('This Spotify link contains a collaborative invite code (?pt=...). Spotify requires logging into Spotify to view collaborative invite links. In Spotify, tap (•••) > "Make Public", then copy the public link to import.');
+      }
       throw new Error('Could not parse Spotify playlist metadata. Please ensure the playlist is public.');
     }
 
     const start = html.indexOf('>', idx) + 1;
     const end = html.indexOf('</script>', start);
     const jsonStr = html.substring(start, end);
-    const nextData = JSON.parse(jsonStr);
+    let nextData: any = {};
+    try {
+      nextData = JSON.parse(jsonStr);
+    } catch (e) {
+      throw new Error('Failed to parse Spotify metadata response');
+    }
+
+    // Check if Spotify returned a 404 inside NextData
+    if (nextData.props?.pageProps?.status === 404) {
+      if (isInviteLink) {
+        throw new Error('This Spotify playlist is a private collaborative invite link (?pt=...). Spotify blocks invite links from web scraping. To import: Open Spotify > tap (•••) > "Make Public" (or share without ?pt=), or export your playlist as JSON.');
+      }
+      throw new Error('Spotify playlist not found or set to Private. Please open Spotify, tap (•••) on the playlist, select "Make Public", and try again.');
+    }
 
     const entity = nextData.props?.pageProps?.state?.data?.entity;
     if (!entity) {
-      throw new Error('Empty Spotify playlist data');
+      if (isInviteLink) {
+        throw new Error('This Spotify link is a collaborative party link (?pt=...). Spotify restricts unauthenticated access to collaborative invites. Please make the playlist Public on Spotify first.');
+      }
+      throw new Error('Spotify playlist data was empty or restricted. Please ensure the playlist is set to "Public" on Spotify.');
     }
 
     const name = entity.name || entity.title || 'Imported Spotify Playlist';
-    const description = entity.description || `Imported from Spotify with ${entity.trackList?.length || 0} tracks`;
-    const cover_url = entity.coverArt?.sources?.[0]?.url || '/static/assets/logo.png';
-    const rawTrackList: any[] = entity.trackList || [];
+    const rawTrackList: any[] = entity.trackList || entity.tracks || [];
+    const description = entity.description || `Imported from Spotify with ${rawTrackList.length} tracks`;
+    const cover_url = entity.coverArt?.sources?.[0]?.url || entity.images?.[0]?.url || '/static/assets/logo.png';
 
     // Search and match each Spotify track on JioSaavn in parallel batches
     const matchedTracks: FormattedSong[] = [];
@@ -1390,7 +1418,10 @@ export async function importPlaylistFromUrl(rawUrl: string): Promise<{
       const batch = rawTrackList.slice(i, i + 3);
       const batchResults = await Promise.all(
         batch.map(async (st: any) => {
-          const query = `${st.title} ${st.subtitle || ''}`.trim();
+          const title = st.title || st.name || '';
+          const subtitle = st.subtitle || (st.artists ? st.artists.map((a: any) => a.name).join(' ') : '');
+          const query = `${title} ${subtitle}`.trim();
+          if (!query) return null;
           try {
             const res = await searchSongs(query, 1, 3);
             return res.results[0] || null;

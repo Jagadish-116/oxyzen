@@ -162,6 +162,14 @@ function createRoomWSHandler(defaultRoomCode?: string) {
               timestamp: Date.now() / 1000
             });
           }
+        } else if (msgType === 'TYPING') {
+          currentRoom.broadcast({
+            type: 'USER_TYPING',
+            user_id: currentUserId,
+            user_name: currentUserName,
+            avatar: currentUserAvatar,
+            is_typing: !!msg.is_typing
+          }, ws);
         } else if (msgType === 'REACTION_PULSE') {
           currentRoom.broadcast({
             type: 'REACTION_PULSE',

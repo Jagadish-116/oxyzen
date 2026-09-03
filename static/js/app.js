@@ -89,6 +89,7 @@ class OxyzenApp {
     this.volumeSlider = document.getElementById("volume-slider");
     this.volumeIcon = document.getElementById("volume-icon");
     this.playerLikeBtn = document.getElementById("player-like-btn");
+    this.playerAddPlaylistBtn = document.getElementById("player-add-playlist-btn");
     this.spatial8DBtn = document.getElementById("spatial-8d-btn");
 
     // Cinema Mode / Mobile Now Playing Drawer
@@ -108,6 +109,7 @@ class OxyzenApp {
     this.cinemaShuffleBtn = document.getElementById("cinema-shuffle-btn");
     this.cinemaRepeatBtn = document.getElementById("cinema-repeat-btn");
     this.cinemaLikeBtn = document.getElementById("cinema-like-btn");
+    this.cinemaAddPlaylistBtn = document.getElementById("cinema-add-playlist-btn");
     this.cinemaSpatialBtn = document.getElementById("cinema-spatial-btn");
     this.cinemaVolumeSlider = document.getElementById("cinema-volume-slider");
     this.cinemaLyrics = document.getElementById("cinema-lyrics");
@@ -442,6 +444,17 @@ class OxyzenApp {
       });
     }
 
+    if (this.playerAddPlaylistBtn) {
+      this.playerAddPlaylistBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.currentTrack) {
+          this.openAddToPlaylistModal(this.currentTrack);
+        } else {
+          this.showToast("No track currently playing");
+        }
+      });
+    }
+
     // 5. Cinema Mode & Mobile Drawer Controls
     if (this.cinemaToggleBtn) {
       this.cinemaToggleBtn.addEventListener("click", () => this.toggleCinemaMode(true));
@@ -544,6 +557,16 @@ class OxyzenApp {
       });
     }
 
+    if (this.cinemaAddPlaylistBtn) {
+      this.cinemaAddPlaylistBtn.addEventListener("click", () => {
+        if (this.currentTrack) {
+          this.openAddToPlaylistModal(this.currentTrack);
+        } else {
+          this.showToast("No track currently playing");
+        }
+      });
+    }
+
     if (this.cinemaSpatialBtn) {
       this.cinemaSpatialBtn.addEventListener("click", () => this.toggle8DMode());
     }
@@ -559,6 +582,9 @@ class OxyzenApp {
       this.lyricsToggleBtn.addEventListener("click", () => {
         this.lyricsPanel.classList.toggle("open");
         this.queuePanel.classList.remove("open");
+        if (this.lyricsPanel.classList.contains("open")) {
+          try { history.pushState({ modal: "lyrics" }, "", location.hash); } catch(e) {}
+        }
       });
     }
     if (this.lyricsCloseBtn) {
@@ -569,7 +595,10 @@ class OxyzenApp {
       this.queueToggleBtn.addEventListener("click", () => {
         this.queuePanel.classList.toggle("open");
         this.lyricsPanel.classList.remove("open");
-        this.renderQueuePanel();
+        if (this.queuePanel.classList.contains("open")) {
+          this.renderQueuePanel();
+          try { history.pushState({ modal: "queue" }, "", location.hash); } catch(e) {}
+        }
       });
     }
     if (this.queueCloseBtn) {
@@ -577,7 +606,10 @@ class OxyzenApp {
     }
 
     if (this.eqOpenBtn) {
-      this.eqOpenBtn.addEventListener("click", () => this.eqModal.classList.add("active"));
+      this.eqOpenBtn.addEventListener("click", () => {
+        this.eqModal.classList.add("active");
+        try { history.pushState({ modal: "equalizer" }, "", location.hash); } catch(e) {}
+      });
     }
     if (this.eqCloseBtn) {
       this.eqCloseBtn.addEventListener("click", () => this.eqModal.classList.remove("active"));
@@ -589,16 +621,85 @@ class OxyzenApp {
     }
 
     this.setupPlaylistImportListeners();
+    this.setupHistoryNavigation();
+  }
+
+  // -------------------------------------------------------------
+  // BROWSER HISTORY & BACK BUTTON SPA NAVIGATION
+  // -------------------------------------------------------------
+  setupHistoryNavigation() {
+    const currentHash = location.hash ? location.hash.replace("#", "") : "explore";
+    const validViews = ["explore", "search", "moods", "vibe", "sync-space", "collection", "liked", "playlists", "history", "profile"];
+    const startView = validViews.includes(currentHash) ? currentHash : "explore";
+
+    try {
+      history.replaceState({ view: startView }, "", `#${startView}`);
+    } catch (e) {}
+
+    window.addEventListener("popstate", (e) => {
+      // 1. If any modal, overlay or slide-over drawer is open, close it first!
+      if (this.cinemaOverlay && this.cinemaOverlay.classList.contains("active")) {
+        this.toggleCinemaMode(false, false);
+        return;
+      }
+      if (this.eqModal && this.eqModal.classList.contains("active")) {
+        this.eqModal.classList.remove("active");
+        return;
+      }
+      if (this.lyricsPanel && (this.lyricsPanel.classList.contains("open") || this.lyricsPanel.classList.contains("active"))) {
+        this.lyricsPanel.classList.remove("open", "active");
+        return;
+      }
+      if (this.queuePanel && (this.queuePanel.classList.contains("open") || this.queuePanel.classList.contains("active"))) {
+        this.queuePanel.classList.remove("open", "active");
+        return;
+      }
+      const addPlModal = document.getElementById("add-to-playlist-modal");
+      if (addPlModal && addPlModal.classList.contains("active")) {
+        addPlModal.classList.remove("active");
+        return;
+      }
+      const createPlModal = document.getElementById("create-playlist-modal");
+      if (createPlModal && createPlModal.classList.contains("active")) {
+        createPlModal.classList.remove("active");
+        return;
+      }
+      const importPlModal = document.getElementById("import-playlist-modal");
+      if (importPlModal && importPlModal.classList.contains("active")) {
+        importPlModal.classList.remove("active");
+        return;
+      }
+
+      // 2. Playlist detail navigation
+      if (e.state && e.state.view === "playlist-detail" && e.state.plId) {
+        this.loadPlaylistDetailView(e.state.plId, false);
+        return;
+      }
+
+      // 3. Regular SPA Views
+      const targetView = (e.state && e.state.view) || (location.hash ? location.hash.replace("#", "") : "explore");
+      if (validViews.includes(targetView)) {
+        this.switchView(targetView, false);
+      } else if (this.activeView !== "explore") {
+        this.switchView("explore", false);
+      }
+    });
   }
 
   // -------------------------------------------------------------
   // VIEW SWITCHER & SPA NAVIGATION
   // -------------------------------------------------------------
-  switchView(viewName) {
+  switchView(viewName, pushHistory = true) {
+    if (pushHistory && viewName !== this.activeView) {
+      try {
+        history.pushState({ view: viewName }, "", `#${viewName}`);
+      } catch (e) {}
+    }
     this.activeView = viewName;
     document.querySelectorAll(".nav-item[data-view], .mobile-nav-tab[data-view]").forEach(item => {
       const isMatch = item.dataset.view === viewName || 
-        (item.classList.contains("mobile-nav-tab") && item.dataset.view === "collection" && ["liked", "playlists", "playlist-detail", "history", "collection"].includes(viewName));
+        (item.classList.contains("mobile-nav-tab") && item.dataset.view === "collection" && ["liked", "playlists", "playlist-detail", "history", "collection"].includes(viewName)) ||
+        (item.classList.contains("mobile-nav-tab") && item.dataset.view === "vibe" && viewName === "vibe");
       item.classList.toggle("active", isMatch);
     });
     this.pageViews.forEach(view => {
@@ -2492,11 +2593,17 @@ class OxyzenApp {
     });
   }
 
-  loadPlaylistDetailView(playlistId) {
+  loadPlaylistDetailView(playlistId, pushHistory = true) {
     const pl = this.storage.getPlaylist(playlistId);
     if (!pl) return;
 
-    this.switchView("playlist-detail");
+    if (pushHistory) {
+      try {
+        history.pushState({ view: "playlist-detail", plId: playlistId }, "", `#playlist-${playlistId}`);
+      } catch (e) {}
+    }
+
+    this.switchView("playlist-detail", false);
     const container = document.getElementById("playlist-detail-container");
     if (!container) return;
 
@@ -2560,20 +2667,20 @@ class OxyzenApp {
                 <td class="row-track-col">
                   <img class="row-thumb" src="${t.thumbnail || '/static/assets/logo.png'}" onerror="this.src='/static/assets/logo.png'" loading="lazy">
                   <div>
-                    <div class="row-title">${t.title}</div>
-                    <div class="row-artist">${t.artist}</div>
+                    <div class="row-title">${this.escapeHTML(t.title)}</div>
+                    <div class="row-artist">${this.escapeHTML(t.artist)}</div>
                   </div>
                 </td>
-                <td>${t.album || 'Oxyzen Audio'}</td>
+                <td>${this.escapeHTML(t.album || 'Oxyzen Audio')}</td>
                 <td>${t.duration_formatted || '3:30'}</td>
                 <td style="text-align: right;">
                   <div class="row-actions">
-                    <button class="btn-row-action ${this.likedIds.has(t.id) ? 'liked' : ''}" data-action="like" title="Like">
-                      ${this.likedIds.has(t.id) ? '❤️' : '🤍'}
+                    <button class="btn-row-action ${this.storage.isLiked(t.id) ? 'liked' : ''}" data-action="like" data-track-id="${t.id}" title="Like">
+                      ${this.storage.isLiked(t.id) ? '❤️' : '🤍'}
                     </button>
-                    <button class="btn-row-action" data-action="add-queue" title="Add to Queue">➕</button>
+                    <button class="btn-row-action" data-action="add-queue" data-track-id="${t.id}" title="Add to Queue">➕</button>
                     <button class="btn-row-action" data-action="remove-from-playlist" data-track-id="${t.id}" title="Remove from Playlist" style="color: #EF4444;">✕</button>
-                    <button class="btn-row-action" data-action="download" title="Download">⬇️</button>
+                    <button class="btn-row-action" data-action="download" data-track-id="${t.id}" title="Download">⬇️</button>
                   </div>
                 </td>
               </tr>
@@ -2587,7 +2694,13 @@ class OxyzenApp {
     this.attachTrackRowEventListeners(container, tracks);
 
     const backBtn = document.getElementById("playlist-back-btn");
-    if (backBtn) backBtn.addEventListener("click", () => this.switchView("playlists"));
+    if (backBtn) backBtn.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        this.switchView("playlists");
+      }
+    });
 
     const playBtn = document.getElementById("pl-detail-play-btn");
     if (playBtn && tracks.length > 0) {
@@ -2621,7 +2734,7 @@ class OxyzenApp {
         const newName = prompt("Enter new playlist name:", pl.name);
         if (newName && newName.trim()) {
           this.storage.updatePlaylist(playlistId, { name: newName.trim() });
-          this.loadPlaylistDetailView(playlistId);
+          this.loadPlaylistDetailView(playlistId, false);
           this.showToast(`✏️ Renamed playlist to "${newName.trim()}"`);
         }
       });
@@ -2643,13 +2756,13 @@ class OxyzenApp {
         e.stopPropagation();
         const tId = btn.dataset.trackId;
         this.storage.removeTrackFromPlaylist(playlistId, tId);
-        this.loadPlaylistDetailView(playlistId);
+        this.loadPlaylistDetailView(playlistId, false);
         this.showToast("Removed track from playlist");
       });
     });
   }
 
-  openImportPlaylistModal() {
+  openImportPlaylistModal(pushHistory = true) {
     const modal = document.getElementById("import-playlist-modal");
     const urlInput = document.getElementById("import-playlist-url-input");
     const statusDiv = document.getElementById("import-playlist-status");
@@ -2665,6 +2778,9 @@ class OxyzenApp {
     }
 
     modal.classList.add("active");
+    if (pushHistory) {
+      try { history.pushState({ modal: "import-playlist" }, "", location.hash); } catch(e) {}
+    }
     if (urlInput) urlInput.focus();
 
     const closeModal = () => modal.classList.remove("active");
@@ -2762,7 +2878,7 @@ class OxyzenApp {
     });
   }
 
-  openCreatePlaylistModal(trackToAdd = null) {
+  openCreatePlaylistModal(trackToAdd = null, pushHistory = true) {
     const modal = document.getElementById("create-playlist-modal");
     const nameInput = document.getElementById("new-playlist-name-input");
     const descInput = document.getElementById("new-playlist-desc-input");
@@ -2774,6 +2890,9 @@ class OxyzenApp {
     if (descInput) descInput.value = "";
 
     modal.classList.add("active");
+    if (pushHistory) {
+      try { history.pushState({ modal: "create-playlist" }, "", location.hash); } catch(e) {}
+    }
     if (nameInput) nameInput.focus();
 
     const closeModal = () => modal.classList.remove("active");
@@ -2799,7 +2918,7 @@ class OxyzenApp {
     }
   }
 
-  openAddToPlaylistModal(track) {
+  openAddToPlaylistModal(track, pushHistory = true) {
     if (!track) return;
     const modal = document.getElementById("add-to-playlist-modal");
     const listContainer = document.getElementById("add-to-playlist-list");
@@ -2808,6 +2927,9 @@ class OxyzenApp {
 
     if (!modal || !listContainer) return;
     modal.classList.add("active");
+    if (pushHistory) {
+      try { history.pushState({ modal: "add-playlist" }, "", location.hash); } catch(e) {}
+    }
 
     const closeModal = () => modal.classList.remove("active");
     if (closeBtn) closeBtn.onclick = closeModal;
@@ -3015,14 +3137,42 @@ class OxyzenApp {
     const syncPrevBtn = document.getElementById("sync-ctrl-prev");
     if (syncPrevBtn) syncPrevBtn.addEventListener("click", () => this.playPrevious());
 
-    // Live Chat
+    // Live Chat & Typing State
     const chatForm = document.getElementById("sync-chat-form");
     const chatInput = document.getElementById("sync-chat-input");
     if (chatForm && chatInput) {
+      let typingTimeout = null;
+      let isTyping = false;
+
+      chatInput.addEventListener("input", () => {
+        if (!isTyping) {
+          isTyping = true;
+          this.sync.sendTyping(true);
+        }
+        if (typingTimeout) clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          isTyping = false;
+          this.sync.sendTyping(false);
+        }, 2200);
+      });
+
+      chatInput.addEventListener("blur", () => {
+        if (isTyping) {
+          isTyping = false;
+          if (typingTimeout) clearTimeout(typingTimeout);
+          this.sync.sendTyping(false);
+        }
+      });
+
       chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const text = chatInput.value.trim();
         if (text) {
+          if (isTyping) {
+            isTyping = false;
+            if (typingTimeout) clearTimeout(typingTimeout);
+            this.sync.sendTyping(false);
+          }
           this.sync.sendChat(text);
           chatInput.value = "";
         }
@@ -3123,6 +3273,10 @@ class OxyzenApp {
 
     window.addEventListener("oxyzen:sync_chat", (e) => {
       this.appendChatMessage(e.detail);
+    });
+
+    window.addEventListener("oxyzen:sync_typing", (e) => {
+      this.handleTypingIndicator(e.detail);
     });
 
     window.addEventListener("oxyzen:sync_user_joined", (e) => {
@@ -3468,22 +3622,61 @@ class OxyzenApp {
     const stream = document.getElementById("sync-chat-stream");
     if (!stream) return;
 
+    // Hide typing indicator when chat message arrives
+    const typingInd = document.getElementById("sync-typing-indicator");
+    if (typingInd) typingInd.style.display = "none";
+    if (this._typingHideTimer) {
+      clearTimeout(this._typingHideTimer);
+      this._typingHideTimer = null;
+    }
+
     const isMine = (msg.user_id === this.sync.userId);
     const timeStr = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const item = document.createElement("div");
-    item.className = `sync-chat-item ${isMine ? 'mine' : ''}`;
+    item.className = `sync-chat-item ${isMine ? 'mine' : 'other'}`;
     item.innerHTML = `
       <div class="sync-chat-user-header">
-        <span>${msg.avatar || '🎧'}</span>
-        <span>${this.escapeHTML(msg.user_name || 'Listener')}</span>
-        <span style="font-weight: 400; font-size: 10px; margin-left: auto;">${timeStr}</span>
+        ${isMine ? `
+          <span style="font-weight: 400; font-size: 10px; opacity: 0.75; margin-right: auto;">${timeStr}</span>
+          <span style="font-weight: 700; color: var(--gold-accent);">You</span>
+          <span>${msg.avatar || '👑'}</span>
+        ` : `
+          <span>${msg.avatar || '🎧'}</span>
+          <span style="font-weight: 700; color: var(--accent-cyan);">${this.escapeHTML(msg.user_name || 'Listener')}</span>
+          <span style="font-weight: 400; font-size: 10px; margin-left: auto; opacity: 0.75;">${timeStr}</span>
+        `}
       </div>
       <div class="sync-chat-msg-text">${this.escapeHTML(msg.text)}</div>
     `;
 
     stream.appendChild(item);
     stream.scrollTop = stream.scrollHeight;
+  }
+
+  handleTypingIndicator(detail) {
+    const indicator = document.getElementById("sync-typing-indicator");
+    const avatarEl = document.getElementById("typing-user-avatar");
+    const textEl = document.getElementById("typing-user-text");
+    if (!indicator) return;
+
+    if (this._typingHideTimer) {
+      clearTimeout(this._typingHideTimer);
+      this._typingHideTimer = null;
+    }
+
+    if (detail && detail.is_typing) {
+      if (avatarEl) avatarEl.innerText = detail.avatar || "🎧";
+      if (textEl) textEl.innerText = `${detail.user_name || "Listener"} is typing`;
+      indicator.style.display = "flex";
+
+      // Auto-expire after 3.5s in case user disconnects or navigates away
+      this._typingHideTimer = setTimeout(() => {
+        indicator.style.display = "none";
+      }, 3500);
+    } else {
+      indicator.style.display = "none";
+    }
   }
 
   appendSystemNotice(text) {
@@ -3518,10 +3711,13 @@ class OxyzenApp {
   // -------------------------------------------------------------
   // CINEMA FULLSCREEN AMBIENT MODE
   // -------------------------------------------------------------
-  toggleCinemaMode(enable = true) {
+  toggleCinemaMode(enable = true, pushHistory = true) {
     if (!this.cinemaOverlay) return;
     this.cinemaOverlay.classList.toggle("active", enable);
     if (enable) {
+      if (pushHistory) {
+        try { history.pushState({ modal: "cinema" }, "", location.hash); } catch(e) {}
+      }
       if (this.currentTrack) {
         this.updatePlayerDockUI(this.currentTrack);
         this.renderLyrics();

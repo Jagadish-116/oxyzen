@@ -329,6 +329,10 @@ class SoundSyncClient {
       window.dispatchEvent(new CustomEvent("oxyzen:sync_chat", { detail: msg }));
     }
 
+    else if (type === "USER_TYPING") {
+      window.dispatchEvent(new CustomEvent("oxyzen:sync_typing", { detail: msg }));
+    }
+
     else if (type === "ERROR") {
       window.dispatchEvent(new CustomEvent("oxyzen:sync_error", { detail: msg }));
     }
@@ -442,6 +446,14 @@ class SoundSyncClient {
     this.send({
       type: "CHAT_MESSAGE",
       text: text.trim()
+    });
+  }
+
+  sendTyping(isTyping) {
+    if (!this.connected) return;
+    this.send({
+      type: "TYPING",
+      is_typing: !!isTyping
     });
   }
 }

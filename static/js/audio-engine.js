@@ -421,6 +421,42 @@ class OxyzenAudioEngine {
           }
         }
       }
+
+      // Render SoundSync Chat Live Audio Level Wave / Spectrum Canvas
+      if (!this.syncCanvas) {
+        this.syncCanvas = document.getElementById("sync-chat-visualizer-canvas");
+        if (this.syncCanvas) this.syncCtx = this.syncCanvas.getContext("2d");
+      }
+
+      if (this.syncCanvas && this.syncCtx) {
+        const sCtx = this.syncCtx;
+        const sw = this.syncCanvas.width;
+        const sh = this.syncCanvas.height;
+        sCtx.clearRect(0, 0, sw, sh);
+
+        const syncBars = 48;
+        const sBarWidth = sw / syncBars;
+        const sStep = Math.floor((bufferLength / 2) / syncBars) || 1;
+
+        for (let i = 0; i < syncBars; i++) {
+          const val = dataArray[i * sStep] / 255.0;
+          const barH = val * sh * 0.85;
+          const sx = i * sBarWidth;
+
+          const sGrad = sCtx.createLinearGradient(0, sh, 0, sh - barH);
+          sGrad.addColorStop(0, "rgba(245, 197, 66, 0.05)");
+          sGrad.addColorStop(0.5, "rgba(168, 85, 247, 0.25)");
+          sGrad.addColorStop(1, "rgba(34, 211, 238, 0.45)");
+
+          sCtx.fillStyle = sGrad;
+          sCtx.fillRect(sx + 1, sh - barH, sBarWidth - 2, barH);
+
+          if (val > 0.42) {
+            sCtx.fillStyle = "rgba(245, 197, 66, 0.75)";
+            sCtx.fillRect(sx + 1, sh - barH - 2, sBarWidth - 2, 2);
+          }
+        }
+      }
     };
 
     render();

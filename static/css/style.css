@@ -3568,14 +3568,31 @@ input:checked + .switch-slider:before {
 }
 
 .sync-chat-card {
-  background: rgba(14, 14, 20, 0.92);
+  background: linear-gradient(180deg, rgba(14, 14, 22, 0.94) 0%, rgba(10, 10, 16, 0.98) 100%);
   border: 1.5px solid var(--border-glass);
   border-radius: var(--radius-lg);
   padding: 20px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 calc(var(--beat-glow, 0) * 24px) rgba(245, 197, 66, 0.15);
   display: flex;
   flex-direction: column;
-  height: 520px;
+  height: 640px;
+  min-height: 580px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+/* Background Beat-Reactive Music Levels Visualizer Canvas */
+.sync-chat-visualizer-canvas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 160px;
+  pointer-events: none;
+  opacity: 0.42;
+  z-index: 1;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .sync-chat-stream {
@@ -3583,37 +3600,73 @@ input:checked + .switch-slider:before {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 12px;
+  padding: 10px 4px;
   margin-bottom: 12px;
+  position: relative;
+  z-index: 2;
+  scroll-behavior: smooth;
 }
 
 .chat-system-msg {
   font-size: 11.5px;
   color: var(--silver-muted);
   text-align: center;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-full);
-  margin: 4px 0;
+  margin: 4px auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  max-width: 88%;
 }
 
+/* Transparent Glassmorphism Bubbles in Opposite Directions */
 .sync-chat-item {
-  background: rgba(26, 26, 38, 0.7);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
-  max-width: 90%;
-  align-self: flex-start;
-  animation: slideToast 0.2s ease;
-}
-.sync-chat-item.mine {
-  background: rgba(245, 197, 66, 0.12);
-  border-color: rgba(245, 197, 66, 0.3);
-  align-self: flex-end;
+  max-width: 82%;
+  padding: 10px 14px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: slideToast 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  word-break: break-word;
+  transition: transform 0.2s ease;
 }
 
-.sync-chat-user-header {
+/* Other users (Host, Listeners) - Left Direction */
+.sync-chat-item:not(.mine) {
+  align-self: flex-start;
+  margin-right: auto;
+  text-align: left;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(20, 20, 32, 0.65) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px 16px 16px 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.sync-chat-item:not(.mine) .sync-chat-user-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  margin-bottom: 4px;
+  justify-content: flex-start;
+}
+
+/* Current user (You) - Right Direction */
+.sync-chat-item.mine {
+  align-self: flex-end;
+  margin-left: auto;
+  text-align: right;
+  background: linear-gradient(135deg, rgba(245, 197, 66, 0.22) 0%, rgba(245, 197, 66, 0.07) 100%);
+  border: 1px solid rgba(245, 197, 66, 0.35);
+  border-radius: 16px 16px 4px 16px;
+  box-shadow: 0 4px 16px rgba(245, 197, 66, 0.15);
+}
+
+.sync-chat-item.mine .sync-chat-user-header {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3621,16 +3674,14 @@ input:checked + .switch-slider:before {
   font-weight: 700;
   color: var(--gold-accent);
   margin-bottom: 4px;
-}
-.sync-chat-item.mine .sync-chat-user-header {
-  color: var(--accent-cyan);
+  justify-content: flex-end;
 }
 
 .sync-chat-msg-text {
-  font-size: 13px;
+  font-size: 13.5px;
   color: #FFFFFF;
-  line-height: 1.4;
-  word-break: break-word;
+  line-height: 1.45;
+  letter-spacing: 0.1px;
 }
 
 .sync-reactions-bar {
@@ -3640,6 +3691,8 @@ input:checked + .switch-slider:before {
   padding: 8px 0;
   margin-bottom: 8px;
   border-top: 1px solid var(--border-glass);
+  position: relative;
+  z-index: 3;
 }
 
 .sync-emoji-bubble {
@@ -3664,9 +3717,61 @@ input:checked + .switch-slider:before {
   transform: scale(0.9);
 }
 
+/* Live Typing Indicator */
+.sync-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  color: var(--silver-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-full);
+  margin-bottom: 8px;
+  width: fit-content;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: fadeIn 0.2s ease;
+  position: relative;
+  z-index: 3;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.typing-dots span {
+  width: 4px;
+  height: 4px;
+  background: var(--gold-accent);
+  border-radius: 50%;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes typingBounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.35;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
 .sync-chat-input-row {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 3;
 }
 
 .sync-chat-input {
@@ -3922,15 +4027,28 @@ input:checked + .switch-slider:before {
   }
   .sync-stage-layout {
     grid-template-columns: 1fr !important;
+    gap: 16px !important;
   }
   .sync-chat-card {
-    height: 360px !important;
+    height: 530px !important;
   }
   .sync-stage-now-playing-card {
     flex-direction: column !important;
     text-align: center !important;
+    padding: 16px 14px !important;
+  }
+  .sync-stage-art-wrap {
+    width: 88px !important;
+    height: 88px !important;
+    margin: 0 auto 6px !important;
   }
   .sync-stage-controls {
+    justify-content: center !important;
+  }
+
+  #player-add-playlist-btn, #player-like-btn {
+    display: inline-flex !important;
+    align-items: center !important;
     justify-content: center !important;
   }
 

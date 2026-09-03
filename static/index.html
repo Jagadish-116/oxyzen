@@ -376,7 +376,7 @@
 
           <!-- Main Split Stage: Now Playing Stage + Live Room Chat -->
           <div class="sync-stage-layout">
-            <!-- Left Stage Column -->
+            <!-- Left Stage Column: Broadcast Player & Live Lounge Chat -->
             <div class="sync-stage-left">
               <!-- Now Playing Card -->
               <div class="sync-stage-now-playing-card">
@@ -402,40 +402,17 @@
                 </div>
               </div>
 
-              <!-- Song Requests Section (For Host/Admin) -->
-              <div class="sync-requests-card" id="sync-requests-card" style="display: none;">
-                <div class="sync-card-header">
-                  <span>🙋‍♂️ Listener Song Requests (<span id="sync-requests-count">0</span>)</span>
-                </div>
-                <div id="sync-requests-list" class="sync-requests-list"></div>
-              </div>
-
-              <!-- In-Room Track Search -->
-              <div class="sync-inroom-search-card">
-                <div class="sync-card-header">
-                  <span>🔍 Search & Queue Tracks for Room</span>
-                </div>
-                <div class="sync-inroom-search-box">
-                  <input type="text" id="sync-inroom-search-input" class="sync-inroom-input" placeholder="Search track name to play or request...">
-                  <button class="btn-luxury btn-gold-action" id="sync-inroom-search-btn">Search</button>
-                </div>
-                <div id="sync-search-results-list" class="sync-inroom-results"></div>
-              </div>
-
-              <!-- Shared Room Queue -->
-              <div class="sync-room-queue-card">
-                <div class="sync-card-header">
-                  <span>📑 Shared Lounge Queue (<span id="sync-room-queue-count">0</span>)</span>
-                </div>
-                <div id="sync-room-queue-list" class="sync-queue-list"></div>
-              </div>
-            </div>
-
-            <!-- Right Chat & Live Reactions Column -->
-            <div class="sync-stage-right">
+              <!-- Lounge Chat & Live Reactions Card (Directly Below Song) -->
               <div class="sync-chat-card">
+                <!-- Ambient Beat-Reactive Music Levels Visualizer Canvas -->
+                <canvas id="sync-chat-visualizer-canvas" class="sync-chat-visualizer-canvas" width="600" height="140"></canvas>
+
                 <div class="sync-card-header">
-                  <span>💬 Lounge Chat & Live Reactions</span>
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    <span class="pulse-live-dot"></span>
+                    <span>💬 Lounge Chat & Live Reactions</span>
+                  </span>
+                  <span class="live-pulse-badge" style="font-size: 9.5px;">LIVE SOUNDSTREAM</span>
                 </div>
 
                 <div class="sync-chat-stream" id="sync-chat-stream">
@@ -452,12 +429,53 @@
                   <button class="sync-emoji-bubble" data-emoji="🎉">🎉</button>
                 </div>
 
+                <!-- Live Typing Indicator -->
+                <div class="sync-typing-indicator" id="sync-typing-indicator" style="display: none;">
+                  <span class="typing-avatar" id="typing-user-avatar">🎧</span>
+                  <span class="typing-text" id="typing-user-text">Listener is typing</span>
+                  <span class="typing-dots">
+                    <span></span><span></span><span></span>
+                  </span>
+                </div>
+
                 <form id="sync-chat-form" class="sync-chat-input-row">
                   <input type="text" id="sync-chat-input" class="sync-chat-input" placeholder="Type a message to the room..." autocomplete="off">
                   <button type="submit" class="btn-luxury btn-gold-action" style="padding: 0 16px;">Send</button>
                 </form>
               </div>
+            </div>
 
+            <!-- Right Column: Queue, Requests, Search & Suggestions -->
+            <div class="sync-stage-right">
+              <!-- Song Requests Section (For Host/Admin) -->
+              <div class="sync-requests-card" id="sync-requests-card" style="display: none;">
+                <div class="sync-card-header">
+                  <span>🙋‍♂️ Listener Song Requests (<span id="sync-requests-count">0</span>)</span>
+                </div>
+                <div id="sync-requests-list" class="sync-requests-list"></div>
+              </div>
+
+              <!-- Shared Room Queue -->
+              <div class="sync-room-queue-card">
+                <div class="sync-card-header">
+                  <span>📑 Shared Lounge Queue (<span id="sync-room-queue-count">0</span>)</span>
+                </div>
+                <div id="sync-room-queue-list" class="sync-queue-list"></div>
+              </div>
+
+              <!-- In-Room Track Search -->
+              <div class="sync-inroom-search-card">
+                <div class="sync-card-header">
+                  <span>🔍 Search & Queue Tracks for Room</span>
+                </div>
+                <div class="sync-inroom-search-box">
+                  <input type="text" id="sync-inroom-search-input" class="sync-inroom-input" placeholder="Search track name to play or request...">
+                  <button class="btn-luxury btn-gold-action" id="sync-inroom-search-btn">Search</button>
+                </div>
+                <div id="sync-search-results-list" class="sync-inroom-results"></div>
+              </div>
+
+              <!-- Kindred Party Suggestions -->
               <div class="sync-party-suggestions-card" style="margin-top: 16px;">
                 <div class="sync-card-header" style="margin-bottom: 12px;">
                   <span>📡 Kindred Party Suggestions</span>
@@ -715,6 +733,7 @@
       <!-- Right Action Controls -->
       <div class="dock-right-actions">
         <button class="btn-row-action" id="player-like-btn" title="Like Track">🤍</button>
+        <button class="btn-row-action" id="player-add-playlist-btn" title="Add to Playlist">📁</button>
         <button class="btn-luxury" id="spatial-8d-btn" style="font-size: 11px; font-weight: 800; padding: 4px 10px;" title="8D Spatial Surround">8D</button>
         <button class="btn-row-action" id="lyrics-toggle-btn" title="Synchronized Lyrics">🎙️</button>
         <button class="btn-row-action" id="queue-toggle-btn" title="Play Queue">
@@ -734,13 +753,9 @@
         <span class="mobile-nav-icon">🪐</span>
         <span class="mobile-nav-label">Home</span>
       </div>
-      <div class="mobile-nav-tab" data-view="search">
-        <span class="mobile-nav-icon">🔍</span>
-        <span class="mobile-nav-label">Search</span>
-      </div>
-      <div class="mobile-nav-tab" data-view="moods">
-        <span class="mobile-nav-icon">🎭</span>
-        <span class="mobile-nav-label">Moods</span>
+      <div class="mobile-nav-tab" data-view="vibe">
+        <span class="mobile-nav-icon">📡</span>
+        <span class="mobile-nav-label">Vibe Radar</span>
       </div>
       <div class="mobile-nav-tab" data-view="sync-space">
         <span class="mobile-nav-icon">🎧</span>
@@ -870,6 +885,7 @@
         <button class="ctrl-btn" id="cinema-next-btn" title="Next (→)">⏭</button>
         <button class="ctrl-btn" id="cinema-repeat-btn" title="Repeat (R)">🔁</button>
         <button class="ctrl-btn" id="cinema-like-btn" title="Like Track">🤍</button>
+        <button class="ctrl-btn" id="cinema-add-playlist-btn" title="Add to Playlist">📁</button>
         <button class="ctrl-btn" id="cinema-spatial-btn" title="Toggle 8D Spatial Audio" style="font-size: 11px; font-weight: 800; border: 1px solid var(--border-glass); border-radius: var(--radius-full); padding: 4px 12px;">8D SPATIAL</button>
         
         <div class="cinema-dock-volume">
@@ -997,6 +1013,9 @@
         </div>
         <div style="font-size: 11.5px; color: var(--silver-muted); margin-top: 8px; line-height: 1.4;">
           Supported: Spotify Public Playlists & Albums, JioSaavn Featured Playlists & Albums.
+        </div>
+        <div style="font-size: 11px; color: rgba(245, 197, 66, 0.9); background: rgba(245, 197, 66, 0.07); border: 1px solid rgba(245, 197, 66, 0.22); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 10px; line-height: 1.45;">
+          💡 <b>Spotify Note:</b> Ensure the playlist is set to <b>Public</b>. (Spotify collaborative invite links with <code>?pt=</code> are private to the Spotify app and cannot be read externally).
         </div>
         
         <div id="import-playlist-status" style="margin-top: 14px; font-size: 13px; display: none;"></div>

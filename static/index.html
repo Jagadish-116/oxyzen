@@ -344,10 +344,10 @@
           <!-- Room Topbar -->
           <div class="sync-room-topbar">
             <div class="sync-room-title-row">
-              <div class="sync-code-pill">
-                <span>ROOM:</span>
+              <div class="sync-code-pill" id="sync-code-pill" title="Tap to copy Room ID" role="button" tabindex="0">
+                <span class="sync-code-prefix">ROOM ID:</span>
                 <strong id="room-code-badge">OXYZEN</strong>
-                <button id="sync-copy-code-btn" class="sync-copy-icon-btn" title="Copy Room Code">📋</button>
+                <button id="sync-copy-code-btn" class="sync-copy-icon-btn" aria-label="Copy Room ID" title="Copy Room ID">📋</button>
               </div>
               <div>
                 <div id="room-display-name" class="sync-room-title">SoundSync Lounge</div>
@@ -692,6 +692,26 @@
               <button class="btn-luxury" id="page-import-backup-btn">📤 Restore Library</button>
               <input type="file" id="profile-import-file-input" style="display: none;" accept=".json">
               <button class="btn-luxury btn-danger-action" id="page-clear-history-btn">🗑️ Clear History</button>
+            </div>
+          </div>
+
+          <!-- Mobile Browser Media Notification Bar Settings -->
+          <div class="profile-card-section">
+            <div class="profile-section-title-wrap">
+              <span class="profile-section-icon">🔔</span>
+              <div>
+                <h3 class="profile-section-heading">Mobile Browser Media Notification Bar</h3>
+                <p class="profile-section-sub">Control playback, pause, change tracks, and like songs directly from your phone lock screen & notification shade</p>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; flex-wrap: wrap;">
+              <div style="font-size: 12.5px; color: var(--silver-muted);" id="notification-permission-status">
+                Status: Native MediaSession Active (Lockscreen Controls Ready)
+              </div>
+              <button class="btn-luxury btn-gold-action" id="enable-mobile-notification-btn" style="padding: 9px 18px; font-size: 12.5px;">
+                <span>🔔</span>
+                <span>Enable Notification Bar</span>
+              </button>
             </div>
           </div>
 

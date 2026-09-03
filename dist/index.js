@@ -108,13 +108,18 @@ function createRoomWSHandler(defaultRoomCode) {
                 else if (msgType === 'CHAT_MESSAGE') {
                     const text = (msg.text || '').trim();
                     if (text) {
-                        currentRoom.broadcast({
-                            type: 'CHAT_MESSAGE',
+                        const chatMsg = {
+                            id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
                             user_id: currentUserId,
                             user_name: currentUserName,
                             avatar: currentUserAvatar,
                             text: text.slice(0, 300),
                             timestamp: Date.now() / 1000
+                        };
+                        currentRoom.addChatMessage(chatMsg);
+                        currentRoom.broadcast({
+                            type: 'CHAT_MESSAGE',
+                            ...chatMsg
                         });
                     }
                 }
@@ -608,6 +613,16 @@ app.get('/api/download/:id', async (c) => {
 const STATIC_DIR = path.resolve(process.cwd(), 'static');
 // Serve static assets from /static/*
 app.use('/static/*', serveStatic({ root: './' }));
+// Serve Service Worker at root /sw.js with global scope
+app.get('/sw.js', (c) => {
+    const swPath = path.join(STATIC_DIR, 'sw.js');
+    if (fs.existsSync(swPath)) {
+        c.header('Content-Type', 'application/javascript; charset=utf-8');
+        c.header('Service-Worker-Allowed', '/');
+        return c.body(fs.readFileSync(swPath, 'utf-8'));
+    }
+    return c.text('Not found', 404);
+});
 // Serve main index.html for root /
 app.get('/', (c) => {
     const indexPath = path.join(STATIC_DIR, 'index.html');

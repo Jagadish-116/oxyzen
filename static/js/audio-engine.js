@@ -34,6 +34,7 @@ class OxyzenAudioEngine {
     this.currentTrack = null;
     this.isPlaying = false;
     this.isInitialized = false;
+    this.pauseInactivityTimer = null;
 
     // Stream Fallback Candidates
     this.streamCandidates = [];
@@ -45,6 +46,7 @@ class OxyzenAudioEngine {
     this.animationFrameId = null;
 
     this.setupAudioListeners();
+    this.setupMediaSession();
   }
 
   initAudioContext() {
@@ -162,6 +164,7 @@ class OxyzenAudioEngine {
     this.audio.addEventListener("play", () => {
       this.isPlaying = true;
       this.ensureContextActive();
+      this.clearPauseInactivityTimer();
       this.updateMediaSessionPlaybackState("playing");
       window.dispatchEvent(new CustomEvent("oxyzen:play", { detail: { track: this.currentTrack } }));
     });
@@ -169,7 +172,19 @@ class OxyzenAudioEngine {
     this.audio.addEventListener("pause", () => {
       this.isPlaying = false;
       this.updateMediaSessionPlaybackState("paused");
+      this.startPauseInactivityTimer();
       window.dispatchEvent(new CustomEvent("oxyzen:pause", { detail: { track: this.currentTrack } }));
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = "none";
+      }
+    });
+    window.addEventListener("pagehide", () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = "none";
+      }
     });
 
     this.audio.addEventListener("timeupdate", () => {
@@ -463,36 +478,84 @@ class OxyzenAudioEngine {
   }
 
   // -------------------------------------------------------------
-  // OS MEDIASESSION API
+  // OS MEDIASESSION API & PERSISTENT MOBILE NOTIFICATION CONTROLS
   // -------------------------------------------------------------
   setupMediaSession() {
     if (!('mediaSession' in navigator)) return;
 
-    navigator.mediaSession.setActionHandler('play', () => this.play());
-    navigator.mediaSession.setActionHandler('pause', () => this.pause());
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.seekTime) this.seek(details.seekTime);
+    const setHandler = (action, handler) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (e) {}
+    };
+
+    setHandler('play', () => this.play());
+    setHandler('pause', () => this.pause());
+    setHandler('seekto', (details) => {
+      if (details.seekTime !== undefined) this.seek(details.seekTime);
     });
-    navigator.mediaSession.setActionHandler('previoustrack', () => {
+    setHandler('previoustrack', () => {
       window.dispatchEvent(new CustomEvent("oxyzen:request_prev"));
     });
-    navigator.mediaSession.setActionHandler('nexttrack', () => {
+    setHandler('nexttrack', () => {
       window.dispatchEvent(new CustomEvent("oxyzen:request_next"));
     });
+    setHandler('seekbackward', (details) => {
+      const skipTime = details.seekOffset || 10;
+      this.seek(Math.max(this.audio.currentTime - skipTime, 0));
+    });
+    setHandler('seekforward', (details) => {
+      const skipTime = details.seekOffset || 10;
+      this.seek(Math.min(this.audio.currentTime + skipTime, this.audio.duration || 0));
+    });
+    setHandler('togglefavorite', () => {
+      window.dispatchEvent(new CustomEvent("oxyzen:request_toggle_like"));
+    });
+    setHandler('stop', () => {
+      this.pause();
+      this.seek(0);
+    });
+  }
+
+  startPauseInactivityTimer() {
+    this.clearPauseInactivityTimer();
+    // Keep notification bar active for 10 minutes of paused inactivity
+    this.pauseInactivityTimer = setTimeout(() => {
+      if (!this.isPlaying && 'mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'none';
+        navigator.mediaSession.metadata = null;
+        window.dispatchEvent(new CustomEvent("oxyzen:media_inactive"));
+      }
+    }, 10 * 60 * 1000);
+  }
+
+  clearPauseInactivityTimer() {
+    if (this.pauseInactivityTimer) {
+      clearTimeout(this.pauseInactivityTimer);
+      this.pauseInactivityTimer = null;
+    }
   }
 
   updateMediaSessionMetadata(track) {
     if (!('mediaSession' in navigator) || !track) return;
     const thumb = track.image || track.thumbnail || '/static/assets/logo.png';
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title || 'Unknown Title',
-      artist: track.artist || 'Unknown Artist',
-      album: track.album || 'Oxyzen Audio',
-      artwork: [
-        { src: thumb, sizes: '500x500', type: 'image/png' },
-        { src: thumb, sizes: '150x150', type: 'image/png' }
-      ]
-    });
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title || 'Unknown Title',
+        artist: track.artist || 'Unknown Artist',
+        album: track.album || 'Oxyzen Music',
+        artwork: [
+          { src: thumb, sizes: '96x96', type: 'image/png' },
+          { src: thumb, sizes: '128x128', type: 'image/png' },
+          { src: thumb, sizes: '192x192', type: 'image/png' },
+          { src: thumb, sizes: '256x256', type: 'image/png' },
+          { src: thumb, sizes: '384x384', type: 'image/png' },
+          { src: thumb, sizes: '512x512', type: 'image/png' }
+        ]
+      });
+    } catch (e) {
+      console.warn("MediaSession metadata update failed:", e);
+    }
   }
 
   updateMediaSessionPlaybackState(state) {

@@ -3140,18 +3140,43 @@ input:checked + .switch-slider:before {
 }
 
 .sync-code-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  background: rgba(245, 197, 66, 0.14);
-  border: 1px solid rgba(245, 197, 66, 0.4);
+  padding: 6px 16px;
+  background: rgba(245, 197, 66, 0.12);
+  border: 1.5px solid rgba(245, 197, 66, 0.35);
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 800;
   color: var(--gold-accent);
   letter-spacing: 1.5px;
+  cursor: pointer;
+  user-select: all !important;
+  -webkit-user-select: all !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sync-code-pill:hover {
+  background: rgba(245, 197, 66, 0.22);
+  border-color: var(--gold-accent);
+  box-shadow: 0 0 16px rgba(245, 197, 66, 0.3);
+  transform: translateY(-1px);
+}
+.sync-code-pill:active {
+  transform: scale(0.97);
+}
+.sync-code-pill.copied-pulse {
+  background: rgba(52, 211, 153, 0.2) !important;
+  border-color: #34D399 !important;
+  color: #34D399 !important;
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.4) !important;
+}
+
+#room-code-badge {
+  user-select: all !important;
+  -webkit-user-select: all !important;
+  cursor: pointer;
 }
 
 .sync-copy-icon-btn {
@@ -3159,11 +3184,15 @@ input:checked + .switch-slider:before {
   border: none;
   color: var(--silver-light);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.2s;
 }
 .sync-copy-icon-btn:hover {
-  transform: scale(1.2);
+  transform: scale(1.25);
   color: var(--gold-accent);
 }
 

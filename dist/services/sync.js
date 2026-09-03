@@ -16,6 +16,7 @@ export class SyncRoom {
     admins = new Set();
     requests = [];
     queue = [];
+    chat_history = [];
     sockets = new Set();
     emptyTimeout = null;
     constructor(code, name, hostId, hostName = 'Host') {
@@ -113,6 +114,12 @@ export class SyncRoom {
     dismissRequest(reqId) {
         this.requests = this.requests.filter(r => r.id !== reqId);
     }
+    addChatMessage(msg) {
+        this.chat_history.push(msg);
+        if (this.chat_history.length > 50) {
+            this.chat_history.shift();
+        }
+    }
     broadcast(message, excludeWs = null) {
         const payload = JSON.stringify(message);
         for (const ws of this.sockets) {
@@ -143,7 +150,8 @@ export class SyncRoom {
             listeners: Array.from(this.listeners.values()),
             admins: Array.from(this.admins),
             requests: this.requests,
-            queue: this.queue
+            queue: this.queue,
+            chat_history: this.chat_history
         };
     }
 }

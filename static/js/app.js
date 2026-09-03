@@ -54,6 +54,7 @@ class OxyzenApp {
     this.setupProfileUI();
     this.setupEqualizerUI();
     this.setupKeyboardShortcuts();
+    this.initServiceWorker();
 
     // Load Initial Data
     this.loadInitialData();
@@ -272,6 +273,7 @@ class OxyzenApp {
       if (vinylDisc) vinylDisc.classList.add("spinning");
       
       this.updateActiveRowHighlight();
+      this.updateBrowserMediaNotification();
       if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
         this.sync.broadcastPlayState(true, this.audio.audio.currentTime);
       }
@@ -289,9 +291,29 @@ class OxyzenApp {
       const vinylDisc = document.getElementById("cinema-vinyl-disc");
       if (vinylDisc) vinylDisc.classList.remove("spinning");
 
+      this.updateBrowserMediaNotification();
       if (this.sync.connected && (this.sync.isHost || this.sync.isAdmin) && !this.sync.isRemoteUpdate) {
         this.sync.broadcastPlayState(false, this.audio.audio.currentTime);
       }
+    });
+
+    // Mobile OS MediaSession & Notification Remote Action Listeners
+    window.addEventListener("oxyzen:request_prev", () => {
+      this.playPrevious();
+    });
+
+    window.addEventListener("oxyzen:request_next", () => {
+      this.playNext();
+    });
+
+    window.addEventListener("oxyzen:request_toggle_like", () => {
+      if (this.currentTrack) {
+        this.toggleLikeTrack(this.currentTrack);
+      }
+    });
+
+    window.addEventListener("oxyzen:media_inactive", () => {
+      this.clearBrowserMediaNotification();
     });
 
     window.addEventListener("oxyzen:timeupdate", (e) => {
@@ -2147,6 +2169,7 @@ class OxyzenApp {
     }
 
     this.updateLikesBadge(this.likedIds.size);
+    this.updateBrowserMediaNotification();
     this.showToast(isLiked ? `❤️ Saved "${track.title}" to Liked` : `🤍 Removed "${track.title}" from Liked`);
 
     fetch(`${API_BASE}/api/library/likes/toggle`, {
@@ -3070,21 +3093,29 @@ class OxyzenApp {
       });
     }
 
-    // Copy Code Button
+    // Copy Code Button & Pill
     const copyCodeBtn = document.getElementById("sync-copy-code-btn");
-    if (copyCodeBtn) {
-      copyCodeBtn.addEventListener("click", () => {
-        if (!this.sync.roomCode) return;
-        navigator.clipboard.writeText(this.sync.roomCode);
-        this.showToast(`📋 Room Code "${this.sync.roomCode}" copied to clipboard!`);
-      });
-    }
+    const codeBadge = document.getElementById("room-code-badge");
+    const codePill = document.getElementById("sync-code-pill");
+
+    const triggerCopyCode = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      this.copyRoomCode();
+    };
+
+    if (copyCodeBtn) copyCodeBtn.addEventListener("click", triggerCopyCode);
+    if (codeBadge) codeBadge.addEventListener("click", triggerCopyCode);
+    if (codePill) codePill.addEventListener("click", triggerCopyCode);
 
     // Leave Room Button
     const leaveBtn = document.getElementById("sync-space-leave-btn");
     if (leaveBtn) {
       leaveBtn.addEventListener("click", () => {
         this.sync.leaveRoom();
+        this.clearChatStream();
         this.renderSoundSyncSpace();
         this.showToast("🚪 Left SoundSync Room");
       });
@@ -3190,6 +3221,7 @@ class OxyzenApp {
 
     // Global Sync WebSocket Event Handlers
     window.addEventListener("oxyzen:sync_connected", (e) => {
+      this.clearChatStream();
       this.showToast(`🎧 Connected to SoundSync Lounge ${e.detail.roomCode}`);
       this.renderSoundSyncSpace();
     });
@@ -3269,6 +3301,17 @@ class OxyzenApp {
 
     window.addEventListener("oxyzen:sync_reaction", (e) => {
       this.spawnReactionParticle(e.detail.emoji);
+    });
+
+    window.addEventListener("oxyzen:sync_reset_chat", () => {
+      this.clearChatStream();
+    });
+
+    window.addEventListener("oxyzen:sync_history", (e) => {
+      this.clearChatStream();
+      if (e.detail && Array.isArray(e.detail.chats)) {
+        e.detail.chats.forEach(msg => this.appendChatMessage(msg));
+      }
     });
 
     window.addEventListener("oxyzen:sync_chat", (e) => {
@@ -3687,6 +3730,174 @@ class OxyzenApp {
     item.innerText = text;
     stream.appendChild(item);
     stream.scrollTop = stream.scrollHeight;
+  }
+
+  clearChatStream() {
+    const stream = document.getElementById("sync-chat-stream");
+    if (stream) {
+      stream.innerHTML = '<div class="chat-system-msg">Welcome to the SoundSync Lounge! Send messages or tap reactions below.</div>';
+    }
+    const indicator = document.getElementById("sync-typing-indicator");
+    if (indicator) indicator.style.display = "none";
+    if (this._typingHideTimer) {
+      clearTimeout(this._typingHideTimer);
+      this._typingHideTimer = null;
+    }
+  }
+
+  copyRoomCode() {
+    const code = (this.sync && this.sync.roomCode) || "";
+    if (!code) {
+      this.showToast("⚠️ No active room code to copy");
+      return;
+    }
+
+    const onSuccess = () => {
+      const btn = document.getElementById("sync-copy-code-btn");
+      const pill = document.getElementById("sync-code-pill");
+      if (btn) btn.innerText = "✅";
+      if (pill) pill.classList.add("copied-pulse");
+      setTimeout(() => {
+        if (btn) btn.innerText = "📋";
+        if (pill) pill.classList.remove("copied-pulse");
+      }, 2000);
+      this.showToast(`📋 Room Code "${code}" copied to clipboard!`);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(code)
+        .then(onSuccess)
+        .catch(() => {
+          this.fallbackCopyText(code, onSuccess);
+        });
+    } else {
+      this.fallbackCopyText(code, onSuccess);
+    }
+  }
+
+  fallbackCopyText(text, callback) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    textArea.setAttribute("readonly", "");
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        if (callback) callback();
+      } else {
+        this.showToast(`Room ID: ${text}`);
+      }
+    } catch (err) {
+      this.showToast(`Room ID: ${text}`);
+    }
+    document.body.removeChild(textArea);
+  }
+
+  // -------------------------------------------------------------
+  // MOBILE BROWSER PERSISTENT MEDIA NOTIFICATION CONTROLLER
+  // -------------------------------------------------------------
+  initServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then((reg) => {
+          console.info('Oxyzen Mobile Media ServiceWorker registered:', reg.scope);
+        })
+        .catch((err) => {
+          console.warn('ServiceWorker registration error:', err);
+        });
+
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (!event.data) return;
+        const action = event.data.type;
+        if (action === 'PREV_TRACK') {
+          this.playPrevious();
+        } else if (action === 'TOGGLE_PLAY') {
+          this.togglePlayPause();
+        } else if (action === 'NEXT_TRACK') {
+          this.playNext();
+        } else if (action === 'LIKE_TRACK') {
+          if (this.currentTrack) {
+            this.toggleLikeTrack(this.currentTrack);
+          }
+        }
+      });
+    }
+
+    // Connect Profile View Notification UI
+    const statusEl = document.getElementById("notification-permission-status");
+    const enableBtn = document.getElementById("enable-mobile-notification-btn");
+
+    const updateStatusUI = () => {
+      if (!('Notification' in window)) {
+        if (statusEl) statusEl.innerText = "Native MediaSession Active (Lockscreen Controls Ready)";
+        if (enableBtn) enableBtn.style.display = "none";
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        if (statusEl) statusEl.innerHTML = "✅ Notification Bar Active (Change, Pause & Like ready in drawer)";
+        if (enableBtn) {
+          enableBtn.innerHTML = "<span>✅</span> <span>Notification Bar Active</span>";
+          enableBtn.classList.remove("btn-gold-action");
+          enableBtn.style.opacity = "0.85";
+        }
+      } else if (Notification.permission === 'denied') {
+        if (statusEl) statusEl.innerText = "⚠️ Browser notifications blocked. Lockscreen controls active via MediaSession.";
+        if (enableBtn) enableBtn.innerText = "Permission Blocked in Browser";
+      } else {
+        if (statusEl) statusEl.innerText = "Tap Enable to show persistent notification bar with Like & Play controls in phone drawer";
+      }
+    };
+
+    updateStatusUI();
+
+    if (enableBtn) {
+      enableBtn.addEventListener("click", async () => {
+        if ('Notification' in window) {
+          const perm = await Notification.requestPermission();
+          updateStatusUI();
+          if (perm === 'granted') {
+            this.showToast("🔔 Mobile notification controller enabled!");
+            this.updateBrowserMediaNotification();
+          } else {
+            this.showToast("Media controls active via lockscreen MediaSession");
+          }
+        }
+      });
+    }
+  }
+
+  updateBrowserMediaNotification() {
+    if (!this.currentTrack) return;
+    const isLiked = this.likedIds ? this.likedIds.has(this.currentTrack.id) : false;
+    const isPlaying = this.audio ? this.audio.isPlaying : false;
+
+    // Send payload to Service Worker
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_MEDIA_NOTIFICATION',
+          title: this.currentTrack.title || 'Unknown Title',
+          artist: this.currentTrack.artist || 'Unknown Artist',
+          image: this.currentTrack.image || this.currentTrack.thumbnail || '/static/assets/logo.png',
+          isPlaying: isPlaying,
+          isLiked: isLiked
+        });
+      }
+    }
+  }
+
+  clearBrowserMediaNotification() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CLEAR_MEDIA_NOTIFICATION'
+      });
+    }
   }
 
   spawnReactionParticle(emoji) {

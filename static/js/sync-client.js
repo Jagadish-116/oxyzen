@@ -52,6 +52,7 @@ class SoundSyncClient {
     this.roomCode = (roomCode || "OXYZEN").toUpperCase().trim();
     this.roomName = roomName;
     this.isConnecting = true;
+    window.dispatchEvent(new CustomEvent("oxyzen:sync_reset_chat"));
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -166,6 +167,7 @@ class SoundSyncClient {
     this.requests = [];
     this.queue = [];
     this.reconnectAttempts = 0;
+    window.dispatchEvent(new CustomEvent("oxyzen:sync_reset_chat"));
     window.dispatchEvent(new CustomEvent("oxyzen:sync_left"));
   }
 
@@ -208,6 +210,10 @@ class SoundSyncClient {
 
       if (this.onStateChange) this.onStateChange(state);
       window.dispatchEvent(new CustomEvent("oxyzen:sync_state", { detail: state }));
+
+      if (state.chat_history && Array.isArray(state.chat_history)) {
+        window.dispatchEvent(new CustomEvent("oxyzen:sync_history", { detail: { chats: state.chat_history } }));
+      }
     }
 
     else if (type === "PLAY_TRACK") {
